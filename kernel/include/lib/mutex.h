@@ -17,18 +17,64 @@
 #ifndef _MUTEX_H_
 #define _MUTEX_H_
 
+#include <lib/spinlock.h>
+#include <lib/condvar.h>
+#include <proc.h>
 #include <errno.h>
+#include <atomic>
 
 class mutex
 {
 public:
-    constexpr mutex() = delete; // noimpl
+    constexpr mutex() : lockproc(nullptr) {}
     mutex(const mutex&) = delete;
     ~mutex() {}
 
-    int lock() {}
-    int try_lock() {}
-    int unlock() {}
+    int lock()
+    {
+        _lock.lock();
+        while (lockproc.load()) {
+            int ret = unlocked.wait(&_lock);
+            if (unlikely(ret))
+                return ret;
+            _lock.lock();
+        }
+        lockproc = process::get_current_proc();
+        ASSERTH(lockproc != nullptr);
+        _lock.unlock();
+        return 0;
+    }
+
+    int try_lock()
+    {
+        _lock.lock();
+        if (lockproc.load()) {
+            _lock.unlock();
+            return -EBUSY;
+        }
+        lockproc = process::get_current_proc();
+        ASSERTH(lockproc != nullptr);
+        _lock.unlock();
+        return 0;
+    }
+
+    int unlock()
+    {
+        _lock.lock();
+        if (unlikely(lockproc.load() != process::get_current_proc())) {
+            _lock.unlock();
+            return -EACCES;
+        }
+        lockproc = nullptr;
+        _lock.unlock();
+        return 0;
+    }
+
+private:
+    spinlock _lock;
+    std::atomic<process::proc*> lockproc;
+
+    process::condvar unlocked;
 };
 
-#endif
+#endif /* _MUTEX_H_ */

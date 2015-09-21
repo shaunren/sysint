@@ -30,28 +30,31 @@ public:
 
     inline int lock()
     {
-        while (locked) ;
-        locked = true;
+        while (locked.test_and_set()) ;
         return 0;
     }
 
     inline int try_lock()
     {
-        if (locked)
+        if (locked.test_and_set())
             return -EBUSY;
-        locked = true;
         return 0;
     }
 
     inline int unlock()
     {
-        locked = false;
+        locked.clear();
         return 0;
     }
 
     inline bool is_locked()
     {
-        return locked;
+        if (locked.test_and_set())
+            return true;
+        else {
+            locked.clear();
+            return false;
+        }
     }
 
     inline explicit operator bool()
@@ -60,7 +63,7 @@ public:
     }
 
 private:
-    std::atomic<bool> locked;
+    std::atomic_flag locked = ATOMIC_FLAG_INIT;
 };
 
-#endif
+#endif /* _SPINLOCK_H_ */

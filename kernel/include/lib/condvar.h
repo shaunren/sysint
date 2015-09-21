@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <atomic>
 #include <lib/linked_list.h>
+#include <lib/spinlock.h>
 
 namespace process
 {
@@ -30,7 +31,10 @@ class condvar
 public:
     constexpr condvar() {}
 
-    int wait();
+    // puts current process to sleep, and unlocks lock atomically
+    int wait(spinlock* lock = nullptr);
+
+    // wakes up specified tid; -1 = all
     int wake(tid_t tid=-1);
 
 private:

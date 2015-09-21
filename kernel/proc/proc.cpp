@@ -23,6 +23,7 @@
 #include <lib/rbtree.h>
 #include <lib/linked_list.h>
 #include <lib/condvar.h>
+#include <lib/spinlock.h>
 #include <stdint.h>
 #include <algorithm>
 #include <atomic>
@@ -190,8 +191,6 @@ extern "C" void __schedule_switch_kstack_and_call_save(proc_state* state);
 
 int __schedule()
 {
-    interrupt_disable();
-
     if (likely(cur_proc)) {
         cur_proc->flags.user = false;
 
@@ -209,6 +208,11 @@ int __schedule()
     }
 }
 
+extern "C" void __schedule_force_online()
+{
+    online = true;
+    schedule(nullptr);
+}
 
 static inline void idle_loop()
 {
@@ -219,7 +223,7 @@ static inline void idle_loop()
 }
 
 /* main schedule function */
-extern "C" void schedule(const isr::registers* regs)
+void schedule(const isr::registers* regs)
 {
     if (unlikely(!online))
         return;
@@ -377,10 +381,13 @@ extern "C" void schedule(const isr::registers* regs)
 }
 
 /* sleeping condition variable */
-int condvar::wait()
+int condvar::wait(spinlock* lock)
 {
     if (unlikely(!cur_proc))
         return -EFAULT;
+
+    online = false;
+    sw_barrier();
 
     proc* p = remove_proc_run(cur_proc);
 
@@ -388,6 +395,10 @@ int condvar::wait()
     p->cur_queue    = proc::EVENT_QUEUE;
     p->queue_handle = (void*)new linked_list<proc_ptr>::iterator(this->waiting_procs.push_front({p}));
 
+    if (likely(lock))
+        lock->unlock();
+
+    sw_barrier();
     int ret = __schedule();
     return ret;
 }
@@ -554,6 +565,7 @@ void exit(int status)
 
     paging::set_page_dir(&paging::kernel_page_dir);
 
+    sw_barrier();
     schedule();
 }
 

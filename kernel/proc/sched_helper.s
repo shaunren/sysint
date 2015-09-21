@@ -19,7 +19,7 @@
 extern _kstack_top
 extern _kernel_end
 
-extern schedule
+extern __schedule_force_online
 extern save_state_no_eip_esp
 
 global __schedule_switch_kstack_and_call
@@ -33,9 +33,7 @@ __schedule_switch_kstack_and_call:
         mov  esp, _kstack_top
 
 .sched:
-        push 0
-        call schedule
-        ret 4
+        jmp __schedule_force_online
 
 global __schedule_switch_kstack_and_call_save
 align 16
@@ -60,6 +58,4 @@ __schedule_switch_kstack_and_call_save:
         mov  esp, _kstack_top
 
 .sched:
-        push 0
-        call schedule
-        ret 4
+        jmp __schedule_force_online
