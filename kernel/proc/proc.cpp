@@ -22,6 +22,7 @@
 #include <sys/sched.h>
 #include <lib/rbtree.h>
 #include <lib/linked_list.h>
+#include <lib/condvar.h>
 #include <stdint.h>
 #include <algorithm>
 #include <atomic>
@@ -375,6 +376,38 @@ extern "C" void schedule(const isr::registers* regs)
         switch_proc(cur_proc->dir->dir->phys_addr, cur_proc->state);
 }
 
+/* sleeping condition variable */
+int condvar::wait()
+{
+    if (unlikely(!cur_proc))
+        return -EFAULT;
+
+    proc* p = remove_proc_run(cur_proc);
+
+    p->status       = proc::WAITING;
+    p->cur_queue    = proc::EVENT_QUEUE;
+    p->queue_handle = (void*)new linked_list<proc_ptr>::iterator(this->waiting_procs.push_front({p}));
+
+    int ret = __schedule();
+    return ret;
+}
+
+int condvar::wake(tid_t tid)
+{
+    bool found = tid == -1;
+    for (auto it = waiting_procs.begin(); it != waiting_procs.end();) {
+        if (it->p->tid == tid) {
+            if (unlikely(!add_proc_run(*it)))
+                return -EFAULT;
+            found = true;
+            break;
+        } else if (tid == -1) {
+            if (unlikely(!add_proc_run(*it++)))
+                return -EFAULT;
+        } else ++it;
+    }
+
+    return found ? 0 : -EINVAL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

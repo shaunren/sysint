@@ -120,7 +120,7 @@ public:
         }
     };
 
-    linked_list()
+    constexpr linked_list()
     {
         nil.prev = nil.next = nil.nil = &nil;
     }

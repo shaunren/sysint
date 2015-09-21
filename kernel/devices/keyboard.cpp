@@ -19,6 +19,7 @@
 #include <console.h>
 #include <ports.h>
 #include <lib/klib.h>
+#include <lib/condvar.h>
 #include "keycodes.h"
 
 namespace devices
@@ -78,6 +79,8 @@ static bool modifier_pressed[4];  // Ctrl, Alt, LShift, RShift
 
 static char shift_table[128];
 
+static process::condvar buffer_nonempty;
+
 static void read_scancode()
 {
     if ((buffer_end + 1) % sizeof_array(buffer) == buffer_begin) {
@@ -121,6 +124,8 @@ static void read_scancode()
         buffer[buffer_end] = ch;
         sw_barrier();
         buffer_end = (buffer_end + 1) % sizeof_array(buffer);
+        sw_barrier();
+        buffer_nonempty.wake();
     }
 
     // reset
@@ -138,10 +143,9 @@ static void callback(isr::registers&)
 
 char getch()
 {
-    if (buffer_begin == buffer_end) {
-        interrupt_enable();
-        return 0;
-    }
+    while (buffer_begin == buffer_end)
+        buffer_nonempty.wait();
+
     char ch = buffer[buffer_begin];
     sw_barrier();
     buffer_begin = (buffer_begin + 1) % sizeof_array(buffer);

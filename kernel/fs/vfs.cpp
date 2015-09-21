@@ -104,9 +104,6 @@ static inline void init_devfs()
                     size_t tot = 0;
                     // block until newline or buf full
                     while (tot < count && (ch = devices::keyboard::getch()) != '\n') {
-                        if (!ch) {
-                            continue;
-                        }
                         tot++;
                         *(char*)buf = ch;
                         buf = (void*) ((char*)buf + 1);

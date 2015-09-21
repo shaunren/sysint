@@ -1,4 +1,4 @@
-/* PS/2 keyboard declarations.
+/* Sleeping condition variable class.
    Copyright (C) 2015 Shaun Ren.
 
    This program is free software: you can redistribute it and/or modify
@@ -14,18 +14,29 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 
-#ifndef _KEYBOARD_H_
-#define _KEYBOARD_H_
+#ifndef _CONDVAR_H_
+#define _CONDVAR_H_
 
-namespace devices
-{
-namespace keyboard
+#include <proc.h>
+#include <errno.h>
+#include <atomic>
+#include <lib/linked_list.h>
+
+namespace process
 {
 
-char getch(); // blocks if no input
-void init();
+class condvar
+{
+public:
+    constexpr condvar() {}
+
+    int wait();
+    int wake(tid_t tid=-1);
+
+private:
+    linked_list<process::proc_ptr> waiting_procs;
+};
 
 }
-}
 
-#endif  /* _KEYBOARD_H_ */
+#endif  /* _CONDVAR_H_ */
