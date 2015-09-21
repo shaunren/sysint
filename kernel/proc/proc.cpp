@@ -22,8 +22,7 @@
 #include <sys/sched.h>
 #include <lib/rbtree.h>
 #include <lib/linked_list.h>
-#include <lib/condvar.h>
-#include <lib/spinlock.h>
+#include <lib/lock.h>
 #include <stdint.h>
 #include <algorithm>
 #include <atomic>
