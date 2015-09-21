@@ -27,19 +27,21 @@ class bitmap
 {
 private:
     uint32_t* xs;
-    bool allocated;
+    bool allocated = false;
     size_t n, sz;
 
 public:
     bitmap(size_t count, uint32_t* addr=nullptr): xs(addr), n(count)
     {
         sz = (count+31) >> 5;
+        if (unlikely(sz == 0))
+            return;
         if (addr == nullptr) {
             xs = (uint32_t*) new uint32_t[sz];
             ASSERT(xs != nullptr);
             memsetd(xs, 0, sz);
             allocated = true;
-        } else allocated = false;
+        }
     }
 
     ~bitmap()

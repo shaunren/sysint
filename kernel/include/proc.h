@@ -25,6 +25,7 @@
 #include <sys/sched.h>
 #include <fs.h>
 #include <lib/vector.h>
+#include <lib/bitmap.h>
 #include <functional>
 #include <atomic>
 #include <memory>
@@ -190,7 +191,7 @@ struct proc
 
     void remove_from_queue();
 
-    int sig = 0;
+    bitmap signals;
 
     pid_t wait_pid = 0;         /* -1 = all children, 0 = not waiting */
 
@@ -225,9 +226,9 @@ struct proc
         return tid < t;
     }
 
-    proc() : tid(-1), pid(-1), dir(nullptr) {}
-    proc(paging::shared_page_dir* dir) : dir(dir) { tid = pid = next_tid++; }
-    proc(pid_t pid, paging::shared_page_dir* dir = nullptr) : tid(next_tid++), pid(pid), dir(dir) {}
+    proc() : tid(-1), pid(-1), dir(nullptr), signals(0) {}
+    proc(paging::shared_page_dir* dir) : dir(dir), signals(32) { tid = pid = next_tid++; }
+    proc(pid_t pid, paging::shared_page_dir* dir = nullptr) : tid(next_tid++), pid(pid), dir(dir), signals(32) {}
 
     static tid_t next_tid;
 };

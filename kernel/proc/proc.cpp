@@ -297,10 +297,13 @@ extern "C" void schedule(const isr::registers* regs)
 
     min_vruntime = cur_proc->p->vruntime;
 
-    if (cur_proc->p->sig) {
+    auto sig = cur_proc->p->signals.first_one();
+    if (sig != (size_t)-1) {
         // handle signal
 
-        if (cur_proc->p->sig == SIGKILL) {
+        cur_proc->p->signals.set(sig, 0);
+
+        if (sig == SIGKILL) {
             exit(128 + SIGKILL);
             return;
         }
@@ -308,7 +311,7 @@ extern "C" void schedule(const isr::registers* regs)
         // TODO invoke signal handler
 
         // fallback default handler
-        switch (cur_proc->p->sig) {
+        switch (sig) {
         case SIGABRT:
         case SIGALRM:
         case SIGBUS:
@@ -328,7 +331,7 @@ extern "C" void schedule(const isr::registers* regs)
         case SIGVTALRM:
         case SIGXCPU:
         case SIGXFSZ:
-            exit(128 + cur_proc->p->sig);
+            exit(128 + sig);
             return;
         default: // ignore
             break;
@@ -554,7 +557,7 @@ int nanosleep(uint64_t ns)
 static int _tkill(proc* p, int sig)
 {
     if (sig && p->status != proc::ZOMBIE) {
-        p->sig = sig;
+        p->signals.set((size_t)sig);
         if (p->status == proc::WAITING) {
             p->remove_from_queue();
             p->queue_handle = run_queue.insert({p}).handle();
