@@ -64,7 +64,7 @@ static fpu_buf_t fpu_buf __attribute__((aligned(16)));
 static rbtree<proc_ptr> proc_list; // list of all processes that's not zombie yet
 
 static rbtree<proc_ptr> run_queue;
-static rbtree<proc_ptr>::const_iterator cur_proc;
+static proc* cur_proc;
 
 // wait queues
 
@@ -105,7 +105,7 @@ static void fpu_used_handler(isr::registers& regs)
         regs.dump();
         PANIC("#NM exception with no process running");
     }
-    cur_proc->p->state.fpu_used = true;
+    cur_proc->state.fpu_used = true;
     asm volatile ("clts"); // clear CR0.TS bit
 }
 
@@ -128,15 +128,12 @@ static inline bool add_proc_run(proc_ptr p, bool interrupted=false)
     return true;
 }
 
-static inline proc* remove_proc_run(const rbtree<proc_ptr>::const_iterator& it)
+static inline proc* remove_proc_run(proc* p)
 {
-    proc* p = it->p;
-    run_queue.erase(it);
+    p->remove_from_queue();
     const auto minvt = min_vruntime.load();
     if (minvt <= p->vruntime)
         p->vruntime -= minvt;
-    p->cur_queue    = proc::NO_QUEUE;
-    p->queue_handle = nullptr;
     p->status       = proc::READY;
     return p;
 }
@@ -147,8 +144,13 @@ void proc::remove_from_queue()
         run_queue.erase(rbtree<proc_ptr>::const_iterator((void*)queue_handle));
     else if (cur_queue == SLEEP_QUEUE)
         sleep_queue.erase(rbtree<sleep_proc>::const_iterator((void*)queue_handle));
-    else if (cur_queue == EVENT_QUEUE)
-        PANIC("proc::remove_from_queue EVENT_QUEUE not implemented");
+    else if (cur_queue == EVENT_QUEUE) {
+        auto it = (linked_list<proc_ptr>::iterator*) queue_handle;
+        it->erase();
+        delete it;
+    }
+    cur_queue    = proc::NO_QUEUE;
+    queue_handle = nullptr;
 }
 
 
@@ -158,15 +160,15 @@ void proc::remove_from_queue()
 
 proc* get_current_proc()
 {
-    return cur_proc->p;
+    return cur_proc;
 }
 
 // check if current process is interrupted from WAITING, and resets the flag
 static inline bool check_interrupted()
 {
     ASSERTH(cur_proc);
-    bool ret = cur_proc->p->flags.interrupted;
-    cur_proc->p->flags.interrupted = false;
+    bool ret = cur_proc->flags.interrupted;
+    cur_proc->flags.interrupted = false;
     return ret;
 }
 
@@ -187,11 +189,13 @@ extern "C" void __schedule_switch_kstack_and_call_save(proc_state* state);
 
 int __schedule()
 {
+    interrupt_disable();
+
     if (likely(cur_proc)) {
-        cur_proc->p->flags.user = false;
+        cur_proc->flags.user = false;
 
         sw_barrier();
-        __schedule_switch_kstack_and_call_save(&cur_proc->p->state);
+        __schedule_switch_kstack_and_call_save(&cur_proc->state);
         sw_barrier();
 
         if (unlikely(check_interrupted()))
@@ -228,11 +232,11 @@ extern "C" void schedule(const isr::registers* regs)
     const uint64_t now = devices::pit::get_ns_passed();
     const uint64_t delta = now - last_sched;
 
-    proc_ptr pold{nullptr};
+    proc* pold = nullptr;
 
     // if cur_proc is nil, select the first task and run;
     // otherwise update vruntime of current process and resched if necessary
-    if (likely(!cur_proc.nil())) {
+    if (likely(cur_proc)) {
         uint64_t cur_latency = run_queue.size() > 0 ?
                                sched_latency/run_queue.size() : 0;
 
@@ -240,9 +244,11 @@ extern "C" void schedule(const isr::registers* regs)
         if (delta < max(SCHEDULE_MIN_DELTA, cur_latency) && regs)
             return;
 
-        pold = *cur_proc;
-        if (likely(pold->cur_queue == proc::RUN_QUEUE))
-            run_queue.erase(cur_proc);
+        pold = cur_proc;
+        if (likely(pold->cur_queue == proc::RUN_QUEUE)) {
+            pold->remove_from_queue();
+            pold->cur_queue = proc::RUN_QUEUE;
+        }
 
         // update current process's vruntime
         pold->vruntime += delta;
@@ -272,7 +278,7 @@ extern "C" void schedule(const isr::registers* regs)
         if (likely(pold->cur_queue == proc::RUN_QUEUE)) {
             pold->status = proc::READY;
 
-            auto handle = run_queue.insert(pold).handle();
+            auto handle = run_queue.insert({pold}).handle();
             pold->queue_handle = (void*)handle;
         }
     }
@@ -283,10 +289,10 @@ extern "C" void schedule(const isr::registers* regs)
     last_sched = now;
 
     // reschedule based on updated vruntime
-    cur_proc = run_queue.min();
+    cur_proc = run_queue.min()->p;
 
 #ifdef _DEBUG_SCHED_BALANCE_
-    sched_count[cur_proc->p->tid]++;
+    sched_count[cur_proc->tid]++;
     if (now % 1000000000 == 0) {
         console::puts("SCHED:\n=========================\n");
         console::printf("SIZE: %d\n", run_queue.size());
@@ -300,13 +306,13 @@ extern "C" void schedule(const isr::registers* regs)
     }
 #endif
 
-    min_vruntime = cur_proc->p->vruntime;
+    min_vruntime = cur_proc->vruntime;
 
-    auto sig = cur_proc->p->signals.first_one();
+    auto sig = cur_proc->signals.first_one();
     if (sig != (size_t)-1) {
         // handle signal
 
-        cur_proc->p->signals.set(sig, 0);
+        cur_proc->signals.set(sig, 0);
 
         if (sig == SIGKILL) {
             exit(128 + SIGKILL);
@@ -343,16 +349,16 @@ extern "C" void schedule(const isr::registers* regs)
         }
     }
 
-    cur_proc->p->status = proc::RUNNING;
+    cur_proc->status = proc::RUNNING;
 
-    paging::set_page_dir(cur_proc->p->dir->dir);
+    paging::set_page_dir(cur_proc->dir->dir);
 
-    if (cur_proc->p != pold.p) {
+    if (cur_proc != pold) {
         // restore FPU state
-        if (uintptr_t(cur_proc->p->state.fpu_buf) % 16 == 0)
-            asm volatile ("fxrstor %0" :: "m"(cur_proc->p->state.fpu_buf) : "memory");
+        if (uintptr_t(cur_proc->state.fpu_buf) % 16 == 0)
+            asm volatile ("fxrstor %0" :: "m"(cur_proc->state.fpu_buf) : "memory");
         else {
-            memcpyd(fpu_buf, cur_proc->p->state.fpu_buf, sizeof(fpu_buf_t)/4);
+            memcpyd(fpu_buf, cur_proc->state.fpu_buf, sizeof(fpu_buf_t)/4);
             asm volatile ("fxrstor %0" :: "m"(fpu_buf) : "memory");
         }
     }
@@ -363,10 +369,12 @@ extern "C" void schedule(const isr::registers* regs)
     cr0 |= 1<<3; // CR0.TS
     asm volatile ("mov cr0, %0" :: "r"(cr0) : "memory");
 
-    if (cur_proc->p->flags.user)
-        switch_proc_user(cur_proc->p->dir->dir->phys_addr, cur_proc->p->state);
+    if (cur_proc->flags.user)
+        switch_proc_user(cur_proc->dir->dir->phys_addr, cur_proc->state);
     else
-        switch_proc(cur_proc->p->dir->dir->phys_addr, cur_proc->p->state);
+        switch_proc(cur_proc->dir->dir->phys_addr, cur_proc->state);
+}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,7 +392,7 @@ int clone(uint32_t flags)
         return -ENOMEM;
 
     if (flags & CLONE_THREAD)
-        newproc->pid = parent_proc->p->pid;
+        newproc->pid = parent_proc->pid;
 
     sw_barrier(); // we need the vars above to be cloned
 
@@ -394,37 +402,37 @@ int clone(uint32_t flags)
         delete newproc.p;
         return -ENOMEM;
     }
-    newproc->dir->dir = parent_proc->p->dir->dir->clone(flags, stack_table, stack_table);
+    newproc->dir->dir = parent_proc->dir->dir->clone(flags, stack_table, stack_table);
     if (unlikely(!newproc->dir->dir)) {
         delete newproc.p;
         return -ENOMEM;
     }
     if (flags & CLONE_VM)
-        newproc->dir->cloned_dir = cur_proc->p->dir;
+        newproc->dir->cloned_dir = cur_proc->dir;
 
     newproc->flags.user = false; // we will be returning to this function, which is in kernel
-    newproc->uid  = parent_proc->p->uid;
-    newproc->nice = parent_proc->p->nice;
+    newproc->uid  = parent_proc->uid;
+    newproc->nice = parent_proc->nice;
 
     newproc->clone_flags = flags;
 
-    newproc->brk_start = parent_proc->p->brk_start;
-    newproc->brk_end   = parent_proc->p->brk_end;
+    newproc->brk_start = parent_proc->brk_start;
+    newproc->brk_end   = parent_proc->brk_end;
 
-    newproc->stack_bot = parent_proc->p->stack_bot;
+    newproc->stack_bot = parent_proc->stack_bot;
 
     // TODO make new fds unless CLONE_FILES
 
-    newproc->parent = (flags & CLONE_PARENT) ? parent_proc->p->parent : parent_proc->p;
+    newproc->parent = (flags & CLONE_PARENT) ? parent_proc->parent : parent_proc;
     newproc->next_sibling = newproc->parent->last_child;
     if (newproc->next_sibling)
         newproc->next_sibling->prev_sibling = newproc.p;
     newproc->parent->last_child = newproc.p;
 
-    if (parent_proc->p->state.fpu_used)
+    if (parent_proc->state.fpu_used)
         fxsave(newproc->state.fpu_buf);
     else
-        memcpyd(newproc->state.fpu_buf, parent_proc->p->state.fpu_buf, sizeof(fpu_buf_t)/4);
+        memcpyd(newproc->state.fpu_buf, parent_proc->state.fpu_buf, sizeof(fpu_buf_t)/4);
     newproc->state.fpu_used = false;
 
     sw_barrier();
@@ -456,14 +464,14 @@ void exit(int status)
 
 
 #ifdef _DEBUG_PROCESS_
-    console::printf("PROC/exit: tid = %d, status = %d\n", cur_proc->p->tid, status);
+    console::printf("PROC/exit: tid = %d, status = %d\n", cur_proc->tid, status);
 #endif
 
     // update states of child processes
-    proc *child = cur_proc->p->last_child, *prev_child = nullptr;
+    proc *child = cur_proc->last_child, *prev_child = nullptr;
 
     for (; child != nullptr;) {
-        ASSERTH(child->parent == cur_proc->p);
+        ASSERTH(child->parent == cur_proc);
 
         const auto next_child = child->next_sibling;
 
@@ -482,17 +490,17 @@ void exit(int status)
     }
 
     // don't save it on stack since we're deleting the current task's kernel stack pages
-    _tmp_dir = cur_proc->p->dir;
+    _tmp_dir = cur_proc->dir;
 
     // free proc stack
-    for (auto stack_addr = (uintptr_t)cur_proc->p->stack_bot;
+    for (auto stack_addr = (uintptr_t)cur_proc->stack_bot;
          stack_addr < uintptr_t(PROC_STACK_TOP); stack_addr += 0x1000)
         _tmp_dir->dir->free_page((void*)stack_addr);
 
-    proc* p = cur_proc->p;
+    proc* p = cur_proc;
 
-    run_queue.erase(cur_proc);
-    cur_proc = rbtree<proc_ptr>::const_iterator();
+    p->remove_from_queue();
+    cur_proc = nullptr;
 
     proc_list.erase(proc_list.find(p->tid));
 
@@ -522,19 +530,19 @@ pid_t getpid()
 {
     if (unlikely(!cur_proc))
         return -1;
-    return cur_proc->p->pid;
+    return cur_proc->pid;
 }
 
 int setnice(int inc)
 {
-    if (inc < 0 && cur_proc->p->uid != ROOT_UID) // only root can increase nice value
+    if (inc < 0 && cur_proc->uid != ROOT_UID) // only root can increase nice value
         return -EACCES;
     if (unlikely(inc == 0))
         return 0;
-    proc_ptr p(*cur_proc);
-    run_queue.erase(cur_proc);
+    proc* p = cur_proc;
+    p->remove_from_queue();
     p->nice = max(NICE_MIN, min(NICE_MAX, p->nice + inc));
-    p->queue_handle = (void*)run_queue.insert(p).handle();
+    p->queue_handle = (void*)run_queue.insert({p}).handle();
 
     return 0;
 }
@@ -599,11 +607,11 @@ pid_t waitpid(pid_t pid, int* status, int options)
         return -ECHILD;
 
     // you shouldn't be waiting for any process right now
-    ASSERTH(cur_proc->p->wait_pid == 0);
+    ASSERTH(cur_proc->wait_pid == 0);
 
     if (pid <= 0) {
         // wait for all children
-        p = cur_proc->p->last_child;
+        p = cur_proc->last_child;
 
         // you don't have any children
         if (unlikely(!p))
@@ -615,10 +623,10 @@ pid_t waitpid(pid_t pid, int* status, int options)
                 // found a zombie, free resources and return
                 return _waitpid_ret(p, status);
 
-        cur_proc->p->wait_pid = -1;
+        cur_proc->wait_pid = -1;
     } else {
         // search if the child with pid exists
-        p = cur_proc->p->get_child_pid(pid);
+        p = cur_proc->get_child_pid(pid);
         if (unlikely(!p))
             return -ECHILD;
 
@@ -626,7 +634,7 @@ pid_t waitpid(pid_t pid, int* status, int options)
         if (p->status == proc::ZOMBIE)
             return _waitpid_ret(p, status);
 
-        cur_proc->p->wait_pid = pid;
+        cur_proc->wait_pid = pid;
     }
 
     proc* curp = remove_proc_run(cur_proc);
@@ -652,8 +660,8 @@ pid_t waitpid(pid_t pid, int* status, int options)
 int _kill_current(int sig)
 {
     ASSERTH(cur_proc);
-    int ret = _tkill(cur_proc->p, sig);
-    cur_proc = rbtree<proc_ptr>::const_iterator();
+    int ret = _tkill(cur_proc, sig);
+    cur_proc = nullptr;
     if (likely(!ret))
         schedule();
     return ret;
