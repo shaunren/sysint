@@ -110,12 +110,22 @@ static void fpu_used_handler(isr::registers& regs)
 }
 
 
-static inline void add_proc_run(proc_ptr newproc)
+static inline bool add_proc_run(proc_ptr p, bool interrupted=false)
 {
-    newproc->vruntime     += min_vruntime;
-    newproc->cur_queue    = proc::RUN_QUEUE;
-    newproc->queue_handle = run_queue.insert(newproc).handle();
-    newproc->status       = proc::READY;
+    if (interrupted) {
+        if (p->status == proc::WAITING)
+            p->flags.interrupted = true;
+        else if (unlikely(p->status == proc::WAITING_NOINTERRUPT))
+            return false;
+    }
+
+    p->remove_from_queue();
+    p->vruntime     += min_vruntime;
+    p->cur_queue    = proc::RUN_QUEUE;
+    p->queue_handle = run_queue.insert(p).handle();
+    p->status       = proc::READY;
+
+    return true;
 }
 
 static inline proc* remove_proc_run(const rbtree<proc_ptr>::const_iterator& it)
@@ -133,14 +143,11 @@ static inline proc* remove_proc_run(const rbtree<proc_ptr>::const_iterator& it)
 
 void proc::remove_from_queue()
 {
-    ASSERTH(queue_handle != nullptr);
     if (cur_queue == RUN_QUEUE)
         run_queue.erase(rbtree<proc_ptr>::const_iterator((void*)queue_handle));
     else if (cur_queue == SLEEP_QUEUE)
         sleep_queue.erase(rbtree<sleep_proc>::const_iterator((void*)queue_handle));
-    else if (cur_queue == NO_QUEUE)
-        PANIC("proc::remove_from_queue NO_QUEUE");
-    else
+    else if (cur_queue == EVENT_QUEUE)
         PANIC("proc::remove_from_queue EVENT_QUEUE not implemented");
 }
 
@@ -169,10 +176,8 @@ void timer_tick(const isr::registers& regs)
 
     // wakeup sleeping processes
     const uint64_t now = devices::pit::get_ns_passed();
-    for (auto it = sleep_queue.begin(); it && it->wakeup_ns <= now;) {
-        add_proc_run(it->p);
-        sleep_queue.erase(it++);
-    }
+    for (auto it = sleep_queue.begin(); it && it->wakeup_ns <= now;)
+        add_proc_run(it++->p);
     schedule(&regs);
 }
 
@@ -558,11 +563,7 @@ static int _tkill(proc* p, int sig)
 {
     if (sig && p->status != proc::ZOMBIE) {
         p->signals.set((size_t)sig);
-        if (p->status == proc::WAITING) {
-            p->remove_from_queue();
-            p->queue_handle = run_queue.insert({p}).handle();
-            p->cur_queue = proc::RUN_QUEUE;
-        }
+        add_proc_run({p}, true);
     }
     return 0;
 }
