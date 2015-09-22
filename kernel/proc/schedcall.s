@@ -1,5 +1,5 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Process scheduler helper that switches to kstack before rescheduling.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Process scheduler helper that switches to kstack before calling __schedule.
 ;; Copyright (C) 2015 Shaun Ren.
 ;;
 ;; This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 ;;
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 extern _kstack_top
 extern _kernel_end
@@ -26,14 +26,14 @@ global __schedule_switch_kstack_and_call
 align 16
 __schedule_switch_kstack_and_call:
         ;; check if we are using a shared kernel stack alreday
-        cmp  esp, _kernel_end
-        jl   .sched
+        cmp esp, _kernel_end
+        jl  __schedule_force_online
 
         ;; switch to kstack
-        mov  esp, _kstack_top
+        mov esp, _kstack_top
 
-.sched:
         jmp __schedule_force_online
+
 
 global __schedule_switch_kstack_and_call_save
 align 16
@@ -51,11 +51,10 @@ __schedule_switch_kstack_and_call_save:
         mov [ecx+20], eax ; esp
 
         ;; check if we are using a shared kernel stack alreday
-        cmp  esp, _kernel_end
-        jl   .sched
+        cmp esp, _kernel_end
+        jl  __schedule_force_online
 
         ;; switch to kstack
-        mov  esp, _kstack_top
+        mov esp, _kstack_top
 
-.sched:
         jmp __schedule_force_online

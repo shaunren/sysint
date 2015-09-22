@@ -291,7 +291,6 @@ proc* get_current_proc();
 
 int __schedule(); // schedule the next running process
 void schedule(const isr::registers* regs = nullptr); /* schedule next proc */
-extern "C" void __schedule_force_online();
 
 void init();
 
