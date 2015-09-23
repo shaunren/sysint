@@ -37,7 +37,6 @@ public:
             int ret = unlocked.wait(&_lock);
             if (unlikely(ret))
                 return ret;
-            _lock.lock();
         }
         lockproc = process::get_current_proc();
         ASSERTH(lockproc != nullptr);

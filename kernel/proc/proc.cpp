@@ -399,6 +399,11 @@ int condvar::wait(spinlock* lock)
 
     sw_barrier();
     int ret = __schedule();
+
+    sw_barrier();
+    if (likely(lock))
+        lock->lock();
+
     return ret;
 }
 

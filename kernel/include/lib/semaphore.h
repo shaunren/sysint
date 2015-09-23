@@ -42,7 +42,6 @@ public:
             int ret = notmax.wait(&lock);
             if (unlikely(ret))
                 return ret;
-            lock.lock();
         }
         count++;
         notmin.wake();
@@ -70,7 +69,6 @@ public:
             int ret = notmin.wait(&lock);
             if (unlikely(ret))
                 return ret;
-            lock.lock();
         }
         count--;
         notmax.wake();
