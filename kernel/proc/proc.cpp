@@ -425,6 +425,15 @@ int condvar::wake(tid_t tid)
     return found ? 0 : -EINVAL;
 }
 
+static int _tkill(proc* p, int sig)
+{
+    if (sig && p->status != proc::ZOMBIE) {
+        p->signals.set((size_t)sig);
+        add_proc_run({p}, true);
+    }
+    return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //    system calls
 ////////////////////////////////////////////////////////////////////////////////
@@ -556,10 +565,13 @@ void exit(int status)
     p->cur_queue   = proc::NO_QUEUE;
     p->exit_status = status;
 
-    if (likely(p->parent) && p->parent->status == proc::WAITING
-        && (p->parent->wait_pid < 0 || p->parent->wait_pid == p->pid)) {
-        // wake parent if waiting
-        add_proc_run({p->parent});
+    if (likely(p->parent)) {
+        if (p->parent->status == proc::WAITING
+            && (p->parent->wait_pid < 0 || p->parent->wait_pid == p->pid))
+            // wake parent if waiting
+            add_proc_run({p->parent});
+        else
+            _tkill(p->parent, SIGCHLD); // signal parent that child has died
     }
 
     // switch to the boot kernel stack since the current stack will be gone
@@ -614,15 +626,6 @@ int nanosleep(uint64_t ns)
     int ret = __schedule();
 
     return ret;
-}
-
-static int _tkill(proc* p, int sig)
-{
-    if (sig && p->status != proc::ZOMBIE) {
-        p->signals.set((size_t)sig);
-        add_proc_run({p}, true);
-    }
-    return 0;
 }
 
 int tkill(tid_t tid, int sig)
