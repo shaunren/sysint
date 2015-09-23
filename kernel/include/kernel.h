@@ -21,5 +21,4 @@ constexpr char KERNEL_NAME[]   = "sysint";
 constexpr int KERNEL_VER_MAJOR = 0;
 constexpr int KERNEL_VER_MINOR = 0;
 
-
 #endif  /* _KERNEL_H_ */

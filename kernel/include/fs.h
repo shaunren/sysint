@@ -22,8 +22,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <errno.h>
 #include <lib/linked_list.h>
+#include <lib/userptr.h>
 #include <atomic>
 #include <memory>
 #include <dirent.h>
@@ -193,11 +195,11 @@ std::shared_ptr<superblock> get_default_root();
 
 
 /* syscalls */
-int open(const char* path, int flags, mode_t mode);
+int open(const user_ptr<char> _path, int flags, mode_t mode);
 int close(int fd);
-ssize_t read(int fd, void* buf, size_t count);
-ssize_t write(int fd, const void* buf, size_t count);
-int lseek(int fd, off_t* poffset, int whence);
+ssize_t read(int fd, user_ptr<void> _buf, size_t count);
+ssize_t write(int fd, const user_ptr<void> _buf, size_t count);
+int lseek(int fd, user_ptr<off_t> _poffset, int whence);
 
 };
 

@@ -26,6 +26,7 @@
 #include <fs.h>
 #include <lib/vector.h>
 #include <lib/bitmap.h>
+#include <lib/userptr.h>
 #include <functional>
 #include <atomic>
 #include <memory>
@@ -311,7 +312,7 @@ int nanosleep(uint64_t ns);
 
 int tkill(tid_t tid, int sig);
 
-pid_t waitpid(pid_t pid, int* status, int options);
+pid_t waitpid(pid_t pid, user_ptr<int> _status, int options);
 }
 
 #endif  /* _PROC_H_ */

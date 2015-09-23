@@ -640,12 +640,16 @@ static inline pid_t _waitpid_ret(proc* p, int* status)
     return pid;
 }
 
-pid_t waitpid(pid_t pid, int* status, int options)
+pid_t waitpid(pid_t pid, user_ptr<int> _status, int options)
 {
     if (options != 0)
         return -EINVAL; // for now
 
-    proc *p;
+    int* status = _status.get();
+    if (unlikely(!status))
+        return -EFAULT;
+
+    proc* p;
 
     if (pid < -1)
         return -ECHILD;

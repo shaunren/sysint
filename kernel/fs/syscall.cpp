@@ -43,7 +43,7 @@ static inline int get_fd(int fd, shared_ptr<file>& f)
     return 0;
 }
 
-int open(const char* path, int flags, mode_t mode)
+int open(const user_ptr<char> _path, int flags, mode_t mode)
 {
     const auto p = process::get_current_proc();
     if (unlikely(!p))
@@ -52,6 +52,11 @@ int open(const char* path, int flags, mode_t mode)
         return -EMFILE;
 
     int fd = p->fd_table.next_fd;
+
+    auto path = _path.get();
+    if (unlikely(!path))
+        return -EFAULT;
+    // TODO check string
 
     auto nd = p->root_sb->walk(path);
     // TODO handle O_CREAT
@@ -99,7 +104,7 @@ int close(int fd)
     return 0;
 }
 
-ssize_t read(int fd, void* buf, size_t count)
+ssize_t read(int fd, user_ptr<void> _buf, size_t count)
 {
     shared_ptr<file> f;
     int ret = get_fd(fd, f);
@@ -109,10 +114,16 @@ ssize_t read(int fd, void* buf, size_t count)
     if (unlikely((f->oflags & O_ACCMODE) == O_WRONLY))
         return -EACCES;
 
+    auto buf = (char*) _buf.get();
+    if (unlikely(!buf || !_buf.check_region(buf, buf + count, true))) {
+        console::printf("EFAULT\n");
+        return -EFAULT;
+    }
+
     return f->read(buf, count);
 }
 
-ssize_t write(int fd, const void* buf, size_t count)
+ssize_t write(int fd, const user_ptr<void> _buf, size_t count)
 {
     shared_ptr<file> f;
     int ret = get_fd(fd, f);
@@ -122,11 +133,18 @@ ssize_t write(int fd, const void* buf, size_t count)
     if (unlikely((f->oflags & O_ACCMODE) == O_RDONLY))
         return -EACCES;
 
+    auto buf = (const char*) _buf.get();
+    if (unlikely(!buf || !_buf.check_region(buf, buf + count))) {
+        console::printf("EFAULT at %#010X\n", _buf.get_raw());
+        return -EFAULT;
+    }
+
     return f->write(buf, count);
 }
 
-int lseek(int fd, off_t* poffset, int whence)
+int lseek(int fd, user_ptr<off_t> _poffset, int whence)
 {
+    off_t* const poffset = _poffset.get();
     if (unlikely(!poffset))
         return -EFAULT;
 
