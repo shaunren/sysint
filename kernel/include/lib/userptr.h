@@ -29,7 +29,7 @@ struct user_ptr
 private:
     T* ptr_;
 
-    inline bool _check_ptr(const T* ptr, bool write = false) const
+    static inline bool _check_ptr(const T* ptr, bool write = false)
     {
         auto dir = paging::get_current_dir();
         ASSERTH(dir != nullptr);
@@ -137,7 +137,7 @@ public:
         return ptr_;
     }
 
-    bool check_region(const T* start, const T* end, bool write = false) const
+    static bool check_region(const T* start, const T* end, bool write = false)
     {
         const uintptr_t endloc = memory::align_addr(uintptr_t(end));
         for (uintptr_t loc = (uintptr_t)start; loc < endloc; loc += paging::PAGE_SIZE)
