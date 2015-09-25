@@ -115,10 +115,8 @@ ssize_t read(int fd, user_ptr<void> _buf, size_t count)
         return -EACCES;
 
     auto buf = (char*) _buf.get();
-    if (unlikely(!buf || !_buf.check_region(buf, buf + count, true))) {
-        console::printf("EFAULT\n");
+    if (unlikely(!buf || !_buf.check_region(buf, buf + count, true)))
         return -EFAULT;
-    }
 
     return f->read(buf, count);
 }
@@ -134,10 +132,8 @@ ssize_t write(int fd, const user_ptr<void> _buf, size_t count)
         return -EACCES;
 
     auto buf = (const char*) _buf.get();
-    if (unlikely(!buf || !_buf.check_region(buf, buf + count))) {
-        console::printf("EFAULT at %#010X\n", _buf.get_raw());
+    if (unlikely(!buf || !_buf.check_region(buf, buf + count)))
         return -EFAULT;
-    }
 
     return f->write(buf, count);
 }
