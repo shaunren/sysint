@@ -442,6 +442,9 @@ int clone(uint32_t flags)
 {
     ASSERTH(cur_proc);
 
+    if ((flags & CLONE_CSIGNAL_MASK) >= 32)
+        return -EINVAL;
+
     const auto parent_proc = cur_proc;
 
     proc_ptr newproc{new proc(nullptr)};
@@ -570,8 +573,10 @@ void exit(int status)
             && (p->parent->wait_pid < 0 || p->parent->wait_pid == p->pid))
             // wake parent if waiting
             add_proc_run({p->parent});
-        else
-            _tkill(p->parent, SIGCHLD); // signal parent that child has died
+        else {
+            auto csig = p->clone_flags & CLONE_CSIGNAL_MASK;
+            _tkill(p->parent, csig ? csig : SIGCHLD); // signal parent that child has died
+        }
     }
 
     // switch to the boot kernel stack since the current stack will be gone
