@@ -25,7 +25,7 @@
 class spinlock
 {
 public:
-    constexpr spinlock() : locked(false) {}
+    constexpr spinlock() {}
     spinlock(const spinlock&) = delete;
 
     inline int lock()
