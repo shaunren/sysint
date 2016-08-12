@@ -56,6 +56,8 @@ extern "C" void switch_proc_user(paging::page_dir* dir_phys, proc_state state);
 extern "C" void save_state(process::proc_state* state);
 extern "C" void save_state_no_eip_esp(proc_state* state);
 
+static const void* PROC_STACK_TOP = (void*)KERNEL_VIRTUAL_BASE;
+
 tid_t proc::next_tid = INIT_TID;
 
 static uint32_t sched_latency = 20000000; // ns
@@ -762,7 +764,7 @@ void init()
         auto new_dir = paging::get_current_dir()->clone();
         new_dir->alloc_block((uint8_t*)PROC_STACK_TOP - 0x1000, 0x1000,
                              paging::PAGE_PRESENT | paging::PAGE_RW | paging::PAGE_US);
-        new_dir->alloc_block(paging::KERNEL_STACK_BOT, paging::KERNEL_STACK_SIZE);
+        new_dir->alloc_block((void*)paging::KERNEL_STACK_BOT, paging::KERNEL_STACK_SIZE);
         proc_ptr p{new proc(new paging::shared_page_dir)};
         p->dir->dir = new_dir;
         memset(&p->state, 0, sizeof(proc_state));

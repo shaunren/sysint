@@ -150,7 +150,7 @@ public:
         this->maxcap = maxcap;
     }
 
-    inline void get_max_capacity()
+    inline size_t get_max_capacity()
     {
         return maxcap;
     }

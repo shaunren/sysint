@@ -48,9 +48,9 @@ constexpr uint32_t PAGE_DIR_4M = 128;
 constexpr uint8_t BUDDY_MAX_ORDER = 10;
 
 // kernel stack location for each process
-constexpr void* KERNEL_STACK_TOP   = (void*)0xffff0000;
+constexpr size_t KERNEL_STACK_TOP  = 0xffff0000;
 constexpr size_t KERNEL_STACK_SIZE = 8192;
-constexpr void* KERNEL_STACK_BOT   = (void*) ((uint32_t)KERNEL_STACK_TOP - KERNEL_STACK_SIZE);
+constexpr size_t KERNEL_STACK_BOT  = KERNEL_STACK_TOP - KERNEL_STACK_SIZE;
 
 
 void* alloc_frames(uint8_t order = 0); /* allocate continuous physical pages of size 2**order */
@@ -118,7 +118,7 @@ struct page_dir
     page* get_page(uint32_t addr, bool make_table=false,
                    uint16_t flags = PAGE_PRESENT|PAGE_RW); // flag is for page_dir_entry only
 
-    inline page* get_page(void* addr, bool make_table=false,
+    inline page* get_page(const void* addr, bool make_table=false,
                           uint16_t flags = PAGE_PRESENT|PAGE_RW)
     {
         return get_page(uint32_t(addr) >> 12, make_table, flags);
@@ -141,7 +141,7 @@ struct page_dir
     bool alloc_pages(uint32_t start, uint32_t sz,
                      uint16_t flags = PAGE_PRESENT|PAGE_RW);
 
-    inline bool alloc_block(void* start, uint32_t sz, // start and sz must be 4KiB aligned
+    inline bool alloc_block(const void* start, uint32_t sz, // start and sz must be 4KiB aligned
                             uint16_t flags = PAGE_PRESENT|PAGE_RW)
     {
         return alloc_pages(uint32_t(start) >> 12, sz >> 12, flags);

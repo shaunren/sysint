@@ -32,7 +32,7 @@ constexpr size_t MIN_SREL_SIZE  = 0x100000; // minimum release size
 namespace heap
 {
 
-constexpr boundary_header* heap_base = (boundary_header*) KERNEL_HEAP_BASE;
+static boundary_header* const heap_base = (boundary_header*) KERNEL_HEAP_BASE;
 
 static boundary_header _list_nil;
 static boundary_header* free_blocks = &_list_nil; // an ordered (by size) linked list of unused blocks

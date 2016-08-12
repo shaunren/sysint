@@ -49,7 +49,6 @@ constexpr size_t PROC_MAX_FDS = 1024; // max # of fds per proc
 
 constexpr uint32_t EFLAGS_DEFAULT = 2; // bit 1 is reserved and must be set to 1
 
-constexpr void* PROC_STACK_TOP = (void*)KERNEL_VIRTUAL_BASE;
 enum class Eflags : uint32_t
 {
     CARRY       = 1,
