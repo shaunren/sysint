@@ -24,26 +24,27 @@
 /* Kernel library functions */
 
 /* Port I/O */
+using port_t = uint16_t;
 // write one byte to port
-inline void outb(uint16_t port, uint8_t value)
+inline void outb(port_t port, uint8_t value)
 {
     asm volatile ("outb %0, %1" : : "dN" (port), "a" (value) : "memory");
 }
 
 // write one word to port
-inline void outw(uint16_t port, uint16_t value)
+inline void outw(port_t port, port_t value)
 {
     asm volatile ("outw %0, %1" : : "dN" (port), "a" (value) : "memory");
 }
 
 // write one double word to port
-inline void outd(uint16_t port, uint32_t value)
+inline void outd(port_t port, uint32_t value)
 {
     asm volatile ("outd %0, %1" : : "dN" (port), "a" (value) : "memory");
 }
 
 // read one byte from port
-inline uint8_t inb(uint16_t port)
+inline uint8_t inb(port_t port)
 {
     uint8_t res;
     asm volatile ("inb %0, %1" : "=a" (res) : "dN" (port) : "memory");

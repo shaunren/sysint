@@ -20,6 +20,7 @@
 #include <isr.h>
 #include <time.h>
 #include <devices/keyboard.h>
+#include <devices/pci.h>
 #include <memory.h>
 #include <paging.h>
 #include <heap.h>
@@ -37,8 +38,6 @@
 
 #include <fs.h>
 
-int xs[10];
-
 // TEST
 /* defined in switch.s */
 extern "C" void switch_to_user_curreg();
@@ -51,6 +50,8 @@ extern "C" void kmain(volatile multiboot_info* mbd)
     memory::init((mbd->mem_upper + 1024) * 1024);
 
     syscall::init();
+
+    devices::pci::init();
 
     time::init();
     devices::keyboard::init();

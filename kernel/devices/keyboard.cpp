@@ -16,7 +16,6 @@
 
 #include <console.h>
 #include <isr.h>
-#include <console.h>
 #include <ports.h>
 #include <lib/klib.h>
 #include <lib/condvar.h>
@@ -31,7 +30,7 @@ static uint8_t buffer[4096];
 static size_t buffer_begin = 0;
 static size_t buffer_end = 0;
 
-static uint8_t kbdus[128] =
+static constexpr uint8_t kbdus[128] =
 {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8',	/* 9 */
   '9', '0', '-', '=', '\b',	/* Backspace */
