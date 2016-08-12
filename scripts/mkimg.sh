@@ -1,5 +1,5 @@
 #!/bin/bash
-## Makes a bootable sysint image with an ext2 partition.
+## Make a bootable sysint image with an ext2 partition.
 ## Copyright (C) 2014 Shaun Ren.
 ##
 ## This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ echo 'Creating a new image...'
 qemu-img create os.img ${1:-512m}
 outlo=`sudo losetup -f --show os.img`
 sudo parted $outlo mklabel msdos
-sudo parted $outlo mkpart primary ext2 1m 100%
+sudo parted $outlo mkpart primary ext2 1m 90%
 sudo parted $outlo set 1 boot on
 ! sudo partx -a $outlo
 sudo mke2fs ${outlo}p1

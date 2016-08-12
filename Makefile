@@ -13,7 +13,7 @@ all:
 
 os.img:	all
 	@echo "Writing files to disk image..."
-	test -s os.img || ./mkimg.sh
+	test -s os.img || ./scripts/mkimg.sh
 	sudo mount -o loop,offset=1048576 ./os.img /mnt/loop
 	sudo cp ./kernel/kernel /mnt/loop/boot/
 	sudo umount /mnt/loop
