@@ -14,8 +14,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 
-#ifndef _STRING_H_
-#define _STRING_H_
+#ifndef _LIB_STRING_H_
+#define _LIB_STRING_H_
 
 #include <stddef.h>
 
@@ -46,4 +46,4 @@ char* itoa(int value, char* str, int base);
 
 }
 
-#endif  /* _STRING_H_ */
+#endif  /* _LIB_STRING_H_ */

@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <memory.h>
 
 /* Kernel library functions */
 

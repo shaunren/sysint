@@ -18,7 +18,7 @@
 #define _VECTOR_H_
 
 #include <lib/klib.h>
-#include <string.h>
+#include <new>
 #include <initializer_list>
 #include <limits>
 #include <utility>
@@ -73,42 +73,74 @@ private:
         if (_begin) {
             // copy over contents
             if (n < sz) // contract
-                for (; _end != _memend;  new(_end++) T(*_begin++)) ;
+                for (; _end != _memend;  new(_end++) T(std::move(*_begin++))) ;
             else // expand
-                for (; _begin != oldend; new(_end++) T(*_begin++)) ;
+                for (; _begin != oldend; new(_end++) T(std::move(*_begin++))) ;
             _destroy(oldbegin, oldend);
             free(oldmem);
         }
         _begin = _membegin;
     }
 
+    iterator _push()
+    {
+        if (size() >= maxcap)
+            return nullptr;
+        iterator pos = _end;
+        if (pos >= _memend) {
+            // expand
+            size_t oldcap = capacity();
+            size_t newcap = _expand_capacity();
+            if (newcap < oldcap + 1) newcap = oldcap + 1;
+            if (newcap > maxcap) newcap = maxcap;
+            _resize_container(newcap);
+            pos = _begin + oldcap;
+        }
+        _end = pos + 1;
+        return pos;
+    }
+
 
 public:
     // contract = contract when the size is 1/4 its capacity
-    explicit vector(size_t n=1, bool contract=true, size_t maxcap = std::numeric_limits<size_t>::max()) :
-        _membegin(nullptr), _begin(nullptr), _end(nullptr), _memend(nullptr), contract(contract), maxcap(maxcap)
+    explicit vector(size_t n=1, bool contract=true,
+                    size_t maxcap = std::numeric_limits<size_t>::max()) :
+        _membegin(nullptr), _begin(nullptr), _end(nullptr), _memend(nullptr),
+        contract(contract), maxcap(maxcap)
     {
         ASSERT(n <= maxcap);
         if (n > maxcap) n = maxcap;
         if (n > 0) {
-            _membegin = _end = _begin = (T*) malloc(sizeof(T) * n);
+            _membegin = _end = _begin = (iterator) malloc(sizeof(T) * n);
             _memend   = _membegin + n;
         }
     }
 
-    vector(vector&& x) : _membegin(x._membegin), _begin(x._begin), _end(x._end),
-                         _memend(x._memend), contract(x.contract), maxcap(x.mapcap)
+    vector(vector&& x) :
+        _membegin(x._membegin), _begin(x._begin), _end(x._end),
+        _memend(x._memend), contract(x.contract), maxcap(x.maxcap)
     {
         x._membegin = x._begin = x._end = x._memend = nullptr;
     }
 
-    vector(std::initializer_list<T> il) : contract(true), maxcap(std::numeric_limits<size_t>::max())
+    vector(std::initializer_list<T> il) :
+        contract(true), maxcap(std::numeric_limits<size_t>::max())
     {
         if (il.size() > 0) {
             _end = _begin = _membegin = (iterator) malloc(il.size() * sizeof(T));
             _memend = _membegin + il.size();
             for (auto it = il.begin(); it != il.end(); new(_end++) T(*it++)) ;
         }
+    }
+
+    vector(const vector& x)
+    {
+        contract = x.contract;
+        _end = _begin = _membegin = (iterator) malloc(x.capacity() * sizeof(T));
+        _memend = _membegin + x.capacity();
+        maxcap = x.maxcap;
+        for (const T& k : x)
+            new (_end++) T(k);
     }
 
     ~vector()
@@ -119,6 +151,7 @@ public:
             _membegin = _memend = _begin = _end = nullptr;
         }
     }
+
 
     inline iterator begin() const
     {
@@ -175,7 +208,7 @@ public:
     {
         if (n > maxcap) return;
         _resize_container(n);
-        for (; _end != _memend; new(_end++) T(val)) ;
+        for (; _end != _memend; ::new(_end++) T(val)) ;
     }
 
     inline void reserve(size_t n)
@@ -184,23 +217,41 @@ public:
             _resize_container(n);
     }
 
-    iterator push_back(const T& k)
+    inline iterator push_back(const T& k)
     {
-        if (size() >= maxcap)
-            return nullptr;
-        iterator pos = _end;
-        if (pos >= _memend) {
-            // expand
-            size_t oldcap = capacity();
-            size_t newcap = _expand_capacity();
-            if (newcap < oldcap + 1) newcap = oldcap + 1;
-            if (newcap > maxcap) newcap = maxcap;
-            _resize_container(newcap);
-            pos = _begin + oldcap;
-        }
-        *pos = k;
-        _end = pos + 1;
+        iterator pos = _push();
+        if (!pos) return nullptr;
+        ::new(pos) T(k);
         return pos;
+    }
+
+    inline iterator push_back(T&& k)
+    {
+        iterator pos = _push();
+        if (!pos) return nullptr;
+        ::new(pos) T(std::forward<T>(k));
+        return pos;
+    }
+
+    template <class... Args>
+    inline iterator emplace_back(Args&&... args)
+    {
+        iterator pos = _push();
+        if (!pos) return nullptr;
+        ::new(pos) T(std::forward<Args>(args)...);
+        return pos;
+    }
+
+    void pop_front()
+    {
+        ASSERTH(_begin < _end);
+        _begin->~T();
+        ++_begin;
+        size_t sz = size();
+        if (contract && 4*sz <= capacity()) { // contract factor 0.25
+            // contract
+            _resize_container(sz < 1 ? 1 : sz);
+        }
     }
 
     void pop_back()
