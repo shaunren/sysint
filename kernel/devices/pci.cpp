@@ -58,7 +58,7 @@ Function::Function(uint8_t bus, const Slot& slot, uint8_t fun) :
     _fun(fun), _slot(slot)
 {
     const uint16_t classw = readw(bus, slot.id(), fun, REG_CLASS);
-    _classid = classw >> 16;
+    _classid = classw >> 8;
     _subclass = (uint8_t) classw;
     if (_classid == CLASS_BRIDGE && _subclass == 0x04 /* PCI BRIDGE*/)
         Bus::add_bus(readd(bus, slot.id(), fun, REG_BUS_NUM) >> 16);
