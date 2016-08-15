@@ -64,6 +64,9 @@ class Bus;
 class Function
 {
     uint8_t _fun, _classid, _subclass, _progif, _revisionid;
+
+    uint32_t base_addrs[6];
+
     const Slot& _slot;
 
     explicit Function(uint8_t bus, const Slot& slot, uint8_t fun);
@@ -76,6 +79,8 @@ public:
     uint8_t progif() const { return _progif; }
     uint8_t revisionid() const { return _revisionid; }
     const Slot& slot() const { return _slot; }
+
+    uint8_t base_addr(int i) const { return base_addrs[i]; }
 
     void dump() const;
 };

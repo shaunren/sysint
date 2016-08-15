@@ -49,21 +49,27 @@ enum Reg
     REG_DEVICE = 2,
     REG_FUNINFO = 8,
     REG_HEADERTYPE = 14,
+    REG_BAR0 = 0x10,
     REG_BUS_NUM = 0x18,
 };
 
 static constexpr uint8_t NUM_SLOTS = 32;
 
 Function::Function(uint8_t bus, const Slot& slot, uint8_t fun) :
-    _fun(fun), _slot(slot)
+    _fun(fun), base_addrs{0}, _slot(slot)
 {
     const uint32_t fund = readd(bus, slot.id(), fun, REG_FUNINFO);
     _classid = fund >> 24;
     _subclass = fund >> 16;
     _progif = fund >> 8;
     _revisionid = (uint8_t) fund;
+    base_addrs[0] = readd(bus, slot.id(), fun, REG_BAR0);
+    base_addrs[1] = readd(bus, slot.id(), fun, REG_BAR0 + 4);
     if (_classid == CLASS_BRIDGE && _subclass == 0x04 /* PCI BRIDGE*/)
         Bus::add_bus(readd(bus, slot.id(), fun, REG_BUS_NUM) >> 16);
+    else
+        for (int i=2; i<6; i++)
+            base_addrs[i] = readd(bus, slot.id(), fun, REG_BAR0 + 4*i);
 }
 
 void Function::dump() const
