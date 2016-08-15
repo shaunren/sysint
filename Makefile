@@ -26,7 +26,7 @@ rungdb: os.img
 	-qemu-system-x86_64 -d cpu_reset -m 512 -s -S os.img & (sleep 0.1; gdb kernel/kernel -ex 'symbol-file kernel/kernel.sym' -ex 'target remote localhost:1234')
 
 runbochs: os.img
-	-bochs -f bochsrc
+	-bochs -f scripts/bochsrc
 
 
 .PHONY:	clean cleandep
