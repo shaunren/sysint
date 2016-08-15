@@ -47,7 +47,7 @@ enum Reg
 {
     REG_VENDOR = 0,
     REG_DEVICE = 2,
-    REG_CLASS = 10,
+    REG_FUNINFO = 8,
     REG_HEADERTYPE = 14,
     REG_BUS_NUM = 0x18,
 };
@@ -57,17 +57,21 @@ static constexpr uint8_t NUM_SLOTS = 32;
 Function::Function(uint8_t bus, const Slot& slot, uint8_t fun) :
     _fun(fun), _slot(slot)
 {
-    const uint16_t classw = readw(bus, slot.id(), fun, REG_CLASS);
-    _classid = classw >> 8;
-    _subclass = (uint8_t) classw;
+    const uint32_t fund = readd(bus, slot.id(), fun, REG_FUNINFO);
+    _classid = fund >> 24;
+    _subclass = fund >> 16;
+    _progif = fund >> 8;
+    _revisionid = (uint8_t) fund;
     if (_classid == CLASS_BRIDGE && _subclass == 0x04 /* PCI BRIDGE*/)
         Bus::add_bus(readd(bus, slot.id(), fun, REG_BUS_NUM) >> 16);
 }
 
 void Function::dump() const
 {
-    console::printf("    Function %d (Class %02X, Subclass %02X)\n",
-                    _fun, _classid, _subclass);
+    console::printf(
+        "    Function %d\n"
+        "     Class %02X, Subclass %02X, Prog IF %02X, Revision ID %02X\n",
+        _fun, _classid, _subclass, _progif, _revisionid);
 }
 
 Slot::Slot(const Bus& bus, uint8_t slot) :

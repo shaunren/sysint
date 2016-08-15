@@ -29,7 +29,7 @@ enum Class
 {
     CLASS_UNKNOWN = 0,
 
-    CLASS_MASS_STORAGE,
+    CLASS_STORAGE,
     CLASS_NETWORK,
     CLASS_DISPLAY,
     CLASS_MULTIMEDIA,
@@ -52,12 +52,18 @@ enum Class
     CLASS_OTHER = 0xFF,
 };
 
+// Subclasses
+constexpr uint8_t SUBCLASS_BRIDGE_PCI = 0x04;
+
+constexpr uint8_t SUBCLASS_STORAGE_IDE = 0x01;
+constexpr uint8_t SUBCLASS_STORAGE_SATA = 0x06;
+
 class Slot;
 class Bus;
 
 class Function
 {
-    uint8_t _fun, _classid, _subclass;
+    uint8_t _fun, _classid, _subclass, _progif, _revisionid;
     const Slot& _slot;
 
     explicit Function(uint8_t bus, const Slot& slot, uint8_t fun);
@@ -67,6 +73,8 @@ public:
     uint8_t fun() const { return _fun; }
     uint8_t classid() const { return _classid; }
     uint8_t subclass() const { return _subclass; }
+    uint8_t progif() const { return _progif; }
+    uint8_t revisionid() const { return _revisionid; }
     const Slot& slot() const { return _slot; }
 
     void dump() const;
