@@ -32,12 +32,12 @@ constexpr size_t MIN_SREL_SIZE  = 0x100000; // minimum release size
 namespace heap
 {
 
-static boundary_header* const heap_base = (boundary_header*) KERNEL_HEAP_BASE;
+static boundary_header* const heap_base = (boundary_header*) HEAP_BASE;
 
 static boundary_header _list_nil;
 static boundary_header* free_blocks = &_list_nil; // an ordered (by size) linked list of unused blocks
 
-static volatile void* heap_end = (void*) (KERNEL_HEAP_BASE + KERNEL_HEAP_INIT_SIZE);
+static volatile void* heap_end = (void*) (HEAP_BASE + HEAP_INIT_SIZE);
 static bool online = false;
 
 
@@ -264,7 +264,7 @@ void free(void* p)
     /* if the block is the last block, and it is big enough, release the block */
     if (uint32_t(heap_end) == uint32_t(footer) + sizeof(boundary_footer) &&
         header->size >= MIN_SREL_SIZE  &&
-        uint32_t(header) > KERNEL_HEAP_BASE + KERNEL_HEAP_INIT_SIZE) {
+        uint32_t(header) > HEAP_BASE + HEAP_INIT_SIZE) {
 
         // need to align?
         if (uint32_t(header) & 0xFFF) {
@@ -300,8 +300,8 @@ void init()
     console::printf("KHEAP: init\n");
 #endif
     // allocate frames for kernel heap
-    kernel_page_dir.alloc_pages(KERNEL_HEAP_BASE>>PAGE_SHIFT,
-                                (KERNEL_HEAP_INIT_SIZE>>PAGE_SHIFT));
+    kernel_page_dir.alloc_pages(HEAP_BASE>>PAGE_SHIFT,
+                                (HEAP_INIT_SIZE>>PAGE_SHIFT));
 
     // fill out nil header
     free_blocks->magic = HEAP_HEADER_MAGIC;
@@ -311,12 +311,12 @@ void init()
 
     // set up an empty block
     heap_base->magic = HEAP_HEADER_MAGIC;
-    heap_base->size  = KERNEL_HEAP_INIT_SIZE;
+    heap_base->size  = HEAP_INIT_SIZE;
     heap_base->used  = false;
 
 
 
-    boundary_footer* footer = (boundary_footer*) (size_t(heap_base) + KERNEL_HEAP_INIT_SIZE - sizeof(boundary_footer));
+    boundary_footer* footer = (boundary_footer*) (size_t(heap_base) + HEAP_INIT_SIZE - sizeof(boundary_footer));
     footer->magic  = HEAP_FOOTER_MAGIC;
     footer->header = heap_base;
 

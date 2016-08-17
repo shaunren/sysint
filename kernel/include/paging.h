@@ -47,11 +47,14 @@ constexpr uint32_t PAGE_DIR_4M = 128;
 
 constexpr uint8_t BUDDY_MAX_ORDER = 10;
 
+// KERNEL_VIRTUAL_BASE .. KERNAL_VIRTUAL_BASE + KERNEL_IDMAP_SIZE shall be
+// identically mapped to the first IDMAP_SIZE.
+constexpr size_t KERNEL_IDMAP_SIZE = 0x10000000;
+
 // kernel stack location for each process
-constexpr size_t KERNEL_STACK_TOP  = 0xffff0000;
+constexpr size_t KERNEL_STACK_TOP  = memory::REMAP_END;
 constexpr size_t KERNEL_STACK_SIZE = 8192;
 constexpr size_t KERNEL_STACK_BOT  = KERNEL_STACK_TOP - KERNEL_STACK_SIZE;
-
 
 void* alloc_frames(uint8_t order = 0); /* allocate continuous physical pages of size 2**order */
 uint32_t free_frames(void* p);       /* free block at physical address p, returning number of bytes freed */
@@ -126,19 +129,21 @@ struct page_dir
 
 
     /* map pages to physical address; start = virt_addr >> 12, sz = # of pages */
-    bool map_pages(uint32_t start, void* addr, uint32_t sz,
+    bool map_pages(uint32_t start, const void* phys_addr, uint32_t sz,
                    bool make_table = false, uint16_t flags = PAGE_PRESENT|PAGE_RW);
 
-    inline bool map_block(void* start, void* addr, uint32_t sz, // start, addr and sz must be 4KiB aligned
+    // start, phys_addr and sz must be 4KiB aligned
+    inline bool map_block(void* start, const void* phys_addr, uint32_t sz,
                           bool make_table = false, uint16_t flags = PAGE_PRESENT|PAGE_RW)
     {
-        return map_pages(uint32_t(start) >> 12, addr, sz >> 12, make_table, flags);
+        return map_pages(uint32_t(start) >> 12, phys_addr,
+                         sz >> 12, make_table, flags);
     }
 
-    /* create pages with arbitrary frames; start = virt_addr >> 12, sz = # of pages
+    /* create pages with arbitrary frames; start_pg_ind = virt_addr >> 12, sz = # of pages
        flags is used for both page and table creation
      */
-    bool alloc_pages(uint32_t start, uint32_t sz,
+    bool alloc_pages(uint32_t start_pg_ind, uint32_t sz,
                      uint16_t flags = PAGE_PRESENT|PAGE_RW);
 
     inline bool alloc_block(const void* start, uint32_t sz, // start and sz must be 4KiB aligned

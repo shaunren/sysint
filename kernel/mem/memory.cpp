@@ -56,7 +56,7 @@ void* kmalloc(size_t sz, bool align, void** phys_addr)
         if (phys_addr) // set physical address
             *phys_addr = (void*) (uint32_t(placement_addr) - KERNEL_VIRTUAL_BASE);
         void* ptr = placement_addr;
-        placement_addr = (void*) (uint32_t(placement_addr) + uint32_t(sz));    
+        placement_addr = (void*) (uint32_t(placement_addr) + uint32_t(sz));
         return ptr;
     }
 }
@@ -67,6 +67,34 @@ void kfree(void* p)
     console::printf("kfree called\n");
 #endif
     if (heap::is_online()) heap::free(p);
+}
+
+
+void* remap(const void* phys_addr, size_t sz, bool cache)
+{
+    static size_t curpos = heap::HEAP_END;
+
+    if (cache && (size_t(phys_addr) + sz) < paging::KERNEL_IDMAP_SIZE)
+        return (void*) (size_t(phys_addr) + KERNEL_VIRTUAL_BASE);
+    else if (size_t(phys_addr) < paging::KERNEL_IDMAP_SIZE)
+        return nullptr;
+    // ALign sz and phys_addr to 4KiB.
+    sz += size_t(phys_addr) & 0xFFF;
+    phys_addr = (void*)(size_t(phys_addr) & ~0xFFF); // Round down phys_addr.
+    sz = align_addr(sz); // Round up sz.
+
+    if (REMAP_END - curpos <= sz)
+        return nullptr;
+
+    if (!kernel_page_dir.map_block(
+            (void*)curpos, phys_addr, sz, /*make_table*/false,
+            paging::PAGE_PRESENT | paging::PAGE_RW |
+            (cache ? 0 : (paging::PAGE_WRITETHROUGH | paging::PAGE_NOCACHE))))
+        return nullptr;
+
+    void* const pos = (void*)curpos;
+    curpos += sz;
+    return pos;
 }
 
 void init(uint32_t mem_size)
@@ -80,6 +108,7 @@ void init(uint32_t mem_size)
 
     heap::init();
 }
+
 
 /* system call */
 void* brk(void* addr)

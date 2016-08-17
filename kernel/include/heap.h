@@ -22,19 +22,20 @@
 #include <multiboot.h>
 #include <stdint.h>
 #include <lib/klib.h>
-
-#define KERNEL_HEAP_BASE      (KERNEL_VIRTUAL_BASE + 0x01000000)
-#define KERNEL_HEAP_END       (KERNEL_HEAP_BASE + 0x10000000)
-#define KERNEL_HEAP_INIT_SIZE 0x100000
-
-
-#define HEAP_HEADER_MAGIC         0x50414548 // "HEAP"
-#define HEAP_FOOTER_MAGIC         0x48454150 // "PAEH"
-#define HEAP_HEADER_RM_MAGIC      0x48455252 // "FREE"
-#define HEAP_FOOTER_RM_MAGIC      0x52524548 // "EERF"
+#include <paging.h>
 
 namespace heap
 {
+
+constexpr size_t HEAP_BASE      = KERNEL_VIRTUAL_BASE + paging::KERNEL_IDMAP_SIZE;
+constexpr size_t HEAP_END       = HEAP_BASE + 0x20000000;
+constexpr size_t HEAP_INIT_SIZE = 0x100000;
+
+
+constexpr uint32_t HEAP_HEADER_MAGIC     = 0x50414548; // "HEAP"
+constexpr uint32_t HEAP_FOOTER_MAGIC     = 0x48454150; // "PAEH"
+constexpr uint32_t HEAP_HEADER_RM_MAGIC  = 0x48455252; // "FREE"
+constexpr uint32_t HEAP_FOOTER_RM_MAGIC  = 0x52524548; // "EERF"
 
 struct boundary_header
 {

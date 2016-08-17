@@ -214,7 +214,7 @@ page* page_dir::get_page(uint32_t addr, bool make_table, uint16_t flags) // addr
     return nullptr;
 }
 
-bool page_dir::map_pages(uint32_t start, void* addr, uint32_t sz,
+bool page_dir::map_pages(uint32_t start, const void* addr, uint32_t sz,
                          bool make_table, uint16_t flags)
 {
     for (uint32_t i = start; i < start+sz;
@@ -259,7 +259,7 @@ static void* memcpyd_phys_aligned(void* dst, const void* src, size_t count)
 
     // use pages at the end
     constexpr uint32_t dst_vaddr = 0xffffe000, src_vaddr = 0xfffff000;
-    
+
     // preserve old pages
     page page_dst_old, page_src_old;
     page_dst_old.value = page_src_old.value = 0;
@@ -431,22 +431,31 @@ void init(uint32_t mem_sz)
         buddy_lists[i].num_avail = 0;
     }
 
-    for (uint32_t i=KERNEL_HEAP_BASE;i<KERNEL_HEAP_END;i+=(1<<22)) // allocate kernel heap tables
-        kernel_page_dir.get_page((void*)i, true);
-
-    uint32_t end = memory::align_addr_4m((uint32_t) memory::get_placement_addr());
-
     // map the entire kernel to 0xC0000000, plus 4MiB of space for allocations before heap activates
-    for (uint32_t i = KERNEL_VIRTUAL_BASE; i < end; i += (1<<22)) {
+    for (size_t i = KERNEL_VIRTUAL_BASE; i < heap::HEAP_BASE; i += (1<<22)) {
         kernel_page_dir.entries[i>>22].present = true;
         kernel_page_dir.entries[i>>22].rw      = true;
         kernel_page_dir.entries[i>>22].ps      = true;
         kernel_page_dir.entries[i>>22].user    = false;
         kernel_page_dir.entries[i>>22].addr    = (i - KERNEL_VIRTUAL_BASE) >> PAGE_SHIFT;
     }
+    switch_page_dir(&kernel_page_dir);
+
+
+    // allocate kernel heap & remap tables
+    for (size_t i=heap::HEAP_BASE;
+         i >= heap::HEAP_BASE && /* check for integer overflow */
+         i < memory::REMAP_END; i+=(1<<22)) {
+        kernel_page_dir.get_page((void*)i, true);
+    }
+
+    const uint32_t end = memory::align_addr_4m((uint32_t) memory::get_placement_addr());
+#ifdef _DEBUG_PAGING_
+    console::printf("PAGING/init: placement addr end = %#08X\n", end);
+#endif
 
     // make blocks
-    for (uint32_t i = (end - KERNEL_VIRTUAL_BASE)>>PAGE_SHIFT, x = BUDDY_MAX_ORDER; i < mem_sz; i+=(1<<x)) {
+    for (size_t i = (end - KERNEL_VIRTUAL_BASE)>>PAGE_SHIFT, x = BUDDY_MAX_ORDER; i < mem_sz; i+=(1<<x)) {
         for (; i+(1<<x) > mem_sz; x--) ; // decrease order as necessary
         auto entry = page_entries + i;
         entry->order = x;
