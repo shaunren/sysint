@@ -28,7 +28,7 @@ extern "C"
 
 void __cxa_pure_virtual()
 {
-    PANIC("KERNEL: pure virutal function called");
+    PANIC("pure virutal function called");
 }
 
 int __cxa_atexit(void (* /*f*/)(void *), void * /*objptr*/, void * /*dso*/)
@@ -59,17 +59,17 @@ __extension__ typedef int __guard __attribute__((mode(__DI__)));
 
 extern "C"
 {
-    int __cxa_guard_acquire (__guard* g)
-    {
-        return !*(char*)(g);
-    }
+int __cxa_guard_acquire(__guard* g)
+{
+    return !*(char*)(g);
+}
 
-    void __cxa_guard_release (__guard* g)
-    {
-        *(char*)g = 1;
-    }
+void __cxa_guard_release(__guard* g)
+{
+    *(char*)g = 1;
+}
 
-    void __cxa_guard_abort (__guard*) {}
+void __cxa_guard_abort(__guard*) {}
 }
 
 }
@@ -101,4 +101,12 @@ void operator delete[](void* p, long unsigned int)
 {
     // TODO change this when the heap manager becomes op
     free(p);
+}
+
+namespace std
+{
+void __throw_bad_function_call()
+{
+    PANIC("bad function call");
+}
 }

@@ -26,7 +26,7 @@ namespace pci
 static constexpr port_t CONFIG_ADDRESS = 0xCF8;
 static constexpr port_t CONFIG_DATA    = 0xCFC;
 
-static uint32_t readd(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset)
+static inline void out_config_addr(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset)
 {
     const uint32_t addr =
         (1u<<31) | // Enable bit
@@ -35,49 +35,79 @@ static uint32_t readd(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset)
         (uint32_t(fun) << 8) |
         offset;
     outd(CONFIG_ADDRESS, addr);
+}
+
+static inline uint32_t readd(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset)
+{
+    ASSERTH((offset & 3) == 0);
+    out_config_addr(bus, slot, fun, offset);
     return ind(CONFIG_DATA);
 }
 
-static uint16_t readw(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset)
+static inline uint16_t readw(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset)
 {
-    return readd(bus, slot, fun, offset & ~3) >> (offset & 2 ? 16 : 0);
+    return readd(bus, slot, fun, offset & ~3) >> ((offset & 3) * 8);
 }
 
-enum Reg
+static inline void writed(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset, uint32_t data)
 {
-    REG_VENDOR = 0,
-    REG_DEVICE = 2,
-    REG_FUNINFO = 8,
-    REG_HEADERTYPE = 14,
-    REG_BAR0 = 0x10,
-    REG_BUS_NUM = 0x18,
-};
+    ASSERTH((offset & 3) == 0);
+    out_config_addr(bus, slot, fun, offset);
+    outd(CONFIG_DATA, data);
+}
+
+static inline void writew(uint8_t bus, uint8_t slot, uint8_t fun, uint8_t offset, uint16_t data)
+{
+    out_config_addr(bus, slot, fun, offset & ~3);
+    uint32_t old = ind(CONFIG_DATA);
+    uint8_t shift = (offset & 3) * 8;
+    outd(CONFIG_DATA, (old & ~(0xFFFF << shift)) | (uint32_t(data) << shift));
+}
 
 static constexpr uint8_t NUM_SLOTS = 32;
 
-Function::Function(uint8_t bus, const Slot& slot, uint8_t fun) :
-    _fun(fun), base_addrs{0}, _slot(slot)
+Device::Device(uint8_t bus, const Slot& slot, uint8_t fun) :
+    _busid(bus), _slotid(slot.id()), _fun(fun), _slot(slot)
 {
-    const uint32_t fund = readd(bus, slot.id(), fun, REG_FUNINFO);
-    _classid = fund >> 24;
-    _subclass = fund >> 16;
-    _progif = fund >> 8;
+    const uint32_t fund = readd(REG_FUNINFO);
+    _classcode.classcode = fund >> 8;
     _revisionid = (uint8_t) fund;
-    base_addrs[0] = readd(bus, slot.id(), fun, REG_BAR0);
-    base_addrs[1] = readd(bus, slot.id(), fun, REG_BAR0 + 4);
-    if (_classid == CLASS_BRIDGE && _subclass == 0x04 /* PCI BRIDGE*/)
-        Bus::add_bus(readd(bus, slot.id(), fun, REG_BUS_NUM) >> 16);
-    else
-        for (int i=2; i<6; i++)
-            base_addrs[i] = readd(bus, slot.id(), fun, REG_BAR0 + 4*i);
+    if (_classcode.classcode == CLASSCODE_PCI_BRIDGE)
+        Bus::add_bus(readd(REG_BUS_NUM) >> 16);
 }
 
-void Function::dump() const
+void Device::dump() const
 {
     console::printf(
-        "    Function %d\n"
-        "     Class %02X, Subclass %02X, Prog IF %02X, Revision ID %02X\n",
-        _fun, _classid, _subclass, _progif, _revisionid);
+        "    Device %d (Classcode %06X, Revision ID %02X)\n",
+        _fun, _classcode.classcode, _revisionid);
+}
+
+uint32_t Device::readd(uint8_t offset) const
+{
+    return pci::readd(_busid, _slotid, _fun, offset);
+}
+
+uint16_t Device::readw(uint8_t offset) const
+{
+    return pci::readw(_busid, _slotid, _fun, offset);
+}
+
+void Device::writed(uint8_t offset, uint32_t data)
+{
+    pci::writed(_busid, _slotid, _fun, offset, data);
+}
+
+void Device::writew(uint8_t offset, uint16_t data)
+{
+    pci::writew(_busid, _slotid, _fun, offset, data);
+}
+
+bool Device::probe(driver_factory factory)
+{
+    if (!_driver)
+        _driver = factory(*this);
+    return (bool)_driver;
 }
 
 Slot::Slot(const Bus& bus, uint8_t slot) :
@@ -90,12 +120,14 @@ Slot::Slot(const Bus& bus, uint8_t slot) :
     if (_vendor == NONEXISTENT)
         return;
 
-    funs.push_back(Function(bus.id(), *this, (uint8_t)0));
+    devs.reserve(8);
+
+    devs.push_back(Device(bus.id(), *this, (uint8_t)0));
     if (readw(bus.id(), slot, 0, REG_HEADERTYPE) & 0x80) {
         // Multi-function device.
         for (uint8_t fun = 1; fun < 8; fun++) {
             if (readw(bus.id(), slot, fun, REG_VENDOR) != NONEXISTENT)
-                funs.push_back(Function(bus.id(), *this, fun));
+                devs.push_back(Device(bus.id(), *this, fun));
         }
     }
 }
@@ -104,27 +136,27 @@ void Slot::dump() const
 {
     console::printf("  Slot %d (Vendor %04X Device %04X):\n",
                     _id, _vendor, _device);
-    for (const Function& fun : funs)
-        fun.dump();
+    for (const Device& dev : devs)
+        dev.dump();
 }
 
 Bus::Bus(uint8_t bus) : _id(bus)
 {
-    slots.reserve(NUM_SLOTS);
+   _slots.reserve(NUM_SLOTS);
     for (uint8_t slot=0; slot < NUM_SLOTS; slot++)
-        slots.push_back(Slot(*this, slot));
+        _slots.push_back(Slot(*this, slot));
 }
 
 void Bus::dump() const
 {
     console::printf("Bus %d:\n", _id);
-    for (const Slot& slot : slots)
+    for (const Slot& slot : _slots)
         if (slot)
             slot.dump();
 }
 
 
-vector<Bus> Bus::busses;
+linked_list<Bus> Bus::busses;
 
 void Bus::add_bus(uint8_t bus)
 {
@@ -157,6 +189,15 @@ void init()
         Bus::add_bus(0);
 
     Bus::dump_all();
+}
+
+void register_driver(driver_factory factory)
+{
+    for (Bus& b : Bus::get_busses())
+        for (Slot& s : b.slots())
+            if (s)
+                for (Device& dev : s.devices())
+                    dev.probe(factory);
 }
 
 }

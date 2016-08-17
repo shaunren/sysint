@@ -20,20 +20,20 @@
 #include <lib/klib.h>
 #include <iterator>
 
-#define RB_BLACK false
-#define RB_RED true
-
 template <typename T>
 class rbtree
 {
 private:
+    static constexpr bool BLACK = false;
+    static constexpr bool RED   = true;
+
     struct node
     {
         node* nil;
         T key;
         bool color;
         node* l, *r, *p;
-        node(node* nl, const T& k=T(), bool c=RB_BLACK, node* x=nullptr,
+        node(node* nl, const T& k=T(), bool c=BLACK, node* x=nullptr,
              node* y=nullptr, node* z=nullptr)
           : nil(nl), key(k), color(c), l(x), r(y), p(z) {}
         ~node()
@@ -140,21 +140,21 @@ private:
     inline void _insert_fixup(node* z)
     {
         node* y;
-        while (z->p->color == RB_RED) {
+        while (z->p->color == RED) {
 
 #define __RBTREE_INSERT_FIX_DIR(a,b) {          \
 y = z->p->p->a; \
-if (y->color == RB_RED) { \
-    z->p->color = RB_BLACK; \
-    y->color = RB_BLACK; \
-    z->p->p->color = RB_RED; \
+if (y->color == RED) { \
+    z->p->color = BLACK; \
+    y->color = BLACK; \
+    z->p->p->color = RED; \
 } else { \
     if (z == z->p->a) { \
         z = z->p; \
         _##b##_rotate(z); \
     } \
-    z->p->color = RB_BLACK; \
-    z->p->p->color = RB_RED; \
+    z->p->color = BLACK; \
+    z->p->p->color = RED; \
     _##a##_rotate(z->p->p); \
 } }
 
@@ -164,7 +164,7 @@ if (y->color == RB_RED) { \
                 __RBTREE_INSERT_FIX_DIR(l,r);
             }
         }
-        root->color = RB_BLACK;
+        root->color = BLACK;
     }
 
     inline void _transplant(node* u, node* v)
@@ -178,29 +178,29 @@ if (y->color == RB_RED) { \
     inline void _remove_fixup(node* x)
     {
         node* w;
-        while (x != root && x->color == RB_BLACK) {
+        while (x != root && x->color == BLACK) {
 
 #define __RBTREE_REMOVE_FIX_DIR(a,b) {          \
 w = x->p->a; \
-if (w->color == RB_RED) { \
-    w->color = RB_BLACK; \
-    x->p->color = RB_RED; \
+if (w->color == RED) { \
+    w->color = BLACK; \
+    x->p->color = RED; \
     _##b##_rotate(x->p); \
     w = x->p->a; \
 } \
-if (w->l->color == RB_BLACK && w->r->color == RB_BLACK) { \
-    w->color = RB_RED; \
+if (w->l->color == BLACK && w->r->color == BLACK) { \
+    w->color = RED; \
     x = x->p; \
 } else { \
-    if (w->a->color == RB_BLACK) { \
-        w->b->color = RB_BLACK; \
-        w->color = RB_RED; \
+    if (w->a->color == BLACK) { \
+        w->b->color = BLACK; \
+        w->color = RED; \
         _##a##_rotate(w); \
         w = x->p->a; \
     } \
     w->color = x->p->color; \
-    x->p->color = RB_BLACK; \
-    w->a->color = RB_BLACK; \
+    x->p->color = BLACK; \
+    w->a->color = BLACK; \
     _##b##_rotate(x->p); \
     x = root; \
 } }
@@ -211,7 +211,7 @@ if (w->l->color == RB_BLACK && w->r->color == RB_BLACK) { \
                 __RBTREE_REMOVE_FIX_DIR(l,r);
             }
         }
-        x->color = RB_BLACK;
+        x->color = BLACK;
     }
 
 public:
@@ -302,7 +302,7 @@ public:
 
     const_iterator insert(const T& k)
     {
-        node* z = new node(nil, k, RB_RED, nil, nil);
+        node* z = new node(nil, k, RED, nil, nil);
         node* y = nil, *x = root;
         while (x != nil) {
             y = x;
@@ -351,7 +351,7 @@ public:
             y->color = z->color;
         }
 
-        if (y_org_color == RB_BLACK)
+        if (y_org_color == BLACK)
             _remove_fixup(x);
         z->l = z->r = nullptr;
         delete z;

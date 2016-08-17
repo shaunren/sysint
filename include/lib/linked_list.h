@@ -30,7 +30,8 @@ private:
         node* nil;
         node* prev = nullptr;
         node* next = nullptr;
-        node(const T& key=T(), node* nil=nullptr) : key(key), nil(nil) {}
+        node() : nil(nullptr) {}
+        node(const T& key, node* nil=nullptr) : key(key), nil(nil) {}
         node(T&& key, node* nil) : key(std::move(key)), nil(nil) {}
         /* insert n after the current entry */
         void insert(node* n)
@@ -156,12 +157,20 @@ public:
         return begin().insert(k);
     }
 
+    inline iterator push_front(T&& k) {
+        return begin().insert(std::move(k));
+    }
+
     inline void pop_front() {
         begin().erase();
     }
 
     inline iterator push_back(const T& k) {
         return iterator(nil.prev, &sz).insert(k);
+    }
+
+    inline iterator push_back(T&& k) {
+        return iterator(nil.prev, &sz).insert(std::move(k));
     }
 
     void pop_back() {
