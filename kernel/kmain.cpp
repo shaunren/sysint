@@ -1,5 +1,5 @@
 /* Main entry point of sysint kernel.
-   Copyright (C) 2014,2015 Shaun Ren.
+   Copyright (C) 2014-2016 Shaun Ren.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include <time.h>
 #include <devices/keyboard.h>
 #include <devices/pci.h>
+#include <devices/ahci.h>
 #include <memory.h>
 #include <paging.h>
 #include <heap.h>
@@ -38,10 +39,6 @@
 
 #include <fs.h>
 
-// TEST
-/* defined in switch.s */
-extern "C" void switch_to_user_curreg();
-
 extern "C" void kmain(volatile multiboot_info* mbd)
 {
     gdt::init();
@@ -52,6 +49,7 @@ extern "C" void kmain(volatile multiboot_info* mbd)
     syscall::init();
 
     devices::pci::init();
+    devices::ahci::init();
 
     time::init();
     devices::keyboard::init();
