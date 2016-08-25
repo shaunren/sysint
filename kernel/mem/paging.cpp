@@ -201,7 +201,8 @@ page* page_dir::get_page(uint32_t addr, bool make_table, uint16_t flags) // addr
     else if (make_table) {
         void* phys; // physical address of the table
 
-        tables[idx] = (page_table*) memory::kmalloc(sizeof(page_table), true, &phys); // allocate aligned
+        tables[idx] = (page_table*)
+            memory::kmalloc(sizeof(page_table), memory::KMALLOC_ALIGN, &phys);
         ASSERT(tables[idx] != nullptr);
 
         memsetd(tables[idx], 0, sizeof(page_table) >> 2);
@@ -309,7 +310,7 @@ page_dir* page_dir::clone(uint32_t flags, int stack_table_bot, int stack_table_t
 {
     void* phys;
 
-    auto dir = (page_dir*) memory::kmalloc(sizeof(page_dir), /*align=*/ true, &phys);
+    auto dir = (page_dir*) memory::kmalloc(sizeof(page_dir), memory::KMALLOC_ALIGN, &phys);
     ASSERTH(dir != nullptr);
     memsetd(dir->entries, 0, sizeof(dir->entries)/4);
     memsetd(dir->tables, 0, sizeof(dir->tables)/4);
@@ -382,7 +383,7 @@ page_table* page_table::clone(void** phys_addr)
     console::printf("cloning page_table...\n");
 #endif
 
-    auto table = (page_table*) memory::kmalloc(sizeof(page_table), /*align=*/ true, phys_addr);
+    auto table = (page_table*) memory::kmalloc(sizeof(page_table), memory::KMALLOC_ALIGN, phys_addr);
     ASSERTH(table != nullptr);
     memset(table, 0, sizeof(page_table));
 

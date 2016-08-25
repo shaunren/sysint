@@ -46,12 +46,13 @@ extern "C" void kmain(volatile multiboot_info* mbd)
 
     memory::init((mbd->mem_upper + 1024) * 1024);
 
+    time::init();
+
     syscall::init();
 
     devices::pci::init();
     devices::ahci::init();
 
-    time::init();
     devices::keyboard::init();
 
     fs::init();
@@ -75,7 +76,7 @@ extern "C" void kmain(volatile multiboot_info* mbd)
             if (!(j%3))
                 free(ps[j]);
         console::printf("\tkmalloc aligned\n");
-        memory::kmalloc(i*10 + 3, true, nullptr);
+        memory::kmalloc(i*10 + 3, memory::KMALLOC_ALIGN, nullptr);
         console::printf("\tfree\n");
         for (int j=0;j<1000;j++)
             if (j%3)

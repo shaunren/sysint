@@ -1,5 +1,5 @@
-/* Time related functions.
-   Copyright (C) 2014,2015 Shaun Ren.
+/* Driver interfaces.
+   Copyright (C) 2016 Shaun Ren.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,24 +14,35 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 
-#include <time.h>
-#include <devices/pit.h>
+#ifndef _DRIVER_H_
+#define _DRIVER_H_
 
-namespace time
+#include <stdint.h>
+
+namespace devices
 {
 
-// read current CPU time-stamp counter
-static inline uint64_t rdtsc()
+class Driver
 {
-    uint32_t lo, hi;
-    asm volatile ("rdtsc" : "=a"(lo), "=d"(hi));
-    return lo + (uint64_t(hi) << 32);
+public:
+    Driver() = default;
+    virtual ~Driver() = default;
+    Driver(const Driver&) = delete;
+    Driver& operator=(const Driver&) = delete;
+    virtual const char* name() const = 0;
+};
+
+class BlockDriver : public Driver
+{
+public:
+    virtual int open()
+    {
+        return 0;
+    }
+    virtual void close() {}
+    virtual int transfer(uint64_t blk, size_t nblks, uint8_t* buf, bool write) = 0;
+};
+
 }
 
-void init()
-{
-    //for (volatile int i = 1<<18; i--; ) ;
-    devices::pit::init();
-}
-
-}
+#endif  // _DRIVER_H_

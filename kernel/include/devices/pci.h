@@ -23,6 +23,8 @@
 #include <memory>
 #include <functional>
 
+#include <devices/driver.h>
+
 namespace devices
 {
 namespace pci
@@ -114,13 +116,6 @@ union command_t
         bool int_disable : 1;
         uint8_t _rsvd : 5;
     };
-};
-
-class Driver
-{
-public:
-    virtual ~Driver() = default;
-    virtual const char* name() const = 0;
 };
 
 class Device;

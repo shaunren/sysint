@@ -36,16 +36,20 @@ void* get_placement_addr()
     return placement_addr;
 }
 
-void* kmalloc(size_t sz, bool align, void** phys_addr)
+void* kmalloc(size_t sz, uint32_t flags, void** phys_addr)
 {
-    if (heap::is_online()) {
-        void* ptr = heap::alloc(sz, align);
+    const bool align = flags & KMALLOC_ALIGN;
+    const bool zero  = flags & KMALLOC_ZERO;
+
+    void* ptr = nullptr;
+
+    if (likely(heap::is_online())) {
+        ptr = heap::alloc(sz, align);
         if (phys_addr) {
             auto pg = kernel_page_dir.get_page(ptr);
             ASSERTH(pg != nullptr);
             *phys_addr = (void*) ((pg->addr << 12) + (uint32_t(ptr) & 0xFFF));
         }
-        return ptr;
     } else {
         // the heap is not online yet, place stuff at temporary address
 #ifdef _DEBUG_KMALLOC_
@@ -55,10 +59,17 @@ void* kmalloc(size_t sz, bool align, void** phys_addr)
             placement_addr = (void*) align_addr((uint32_t)placement_addr);
         if (phys_addr) // set physical address
             *phys_addr = (void*) (uint32_t(placement_addr) - KERNEL_VIRTUAL_BASE);
-        void* ptr = placement_addr;
+        ptr = placement_addr;
         placement_addr = (void*) (uint32_t(placement_addr) + uint32_t(sz));
-        return ptr;
     }
+
+    if (zero) {
+        if ((sz & 3) == 0)
+            memsetd(ptr, 0, sz >> 2);
+        else
+            memset(ptr, 0, sz);
+    }
+    return ptr;
 }
 
 void kfree(void* p)

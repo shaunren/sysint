@@ -42,7 +42,10 @@ void* get_placement_addr();
 
 void init(uint32_t mem_sz);
 
-void* kmalloc(size_t sz, bool align=false, void** phys_addr=nullptr);
+constexpr uint32_t KMALLOC_ALIGN = 1;
+constexpr uint32_t KMALLOC_ZERO = 1<<1;
+
+void* kmalloc(size_t sz, uint32_t flags=0, void** phys_addr=nullptr);
 
 void kfree(void* p);
 
