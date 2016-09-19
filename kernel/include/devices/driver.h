@@ -22,17 +22,17 @@
 namespace devices
 {
 
-class Driver
+class driver
 {
 public:
-    Driver() = default;
-    virtual ~Driver() = default;
-    Driver(const Driver&) = delete;
-    Driver& operator=(const Driver&) = delete;
+    driver() = default;
+    virtual ~driver() = default;
+    driver(const driver&) = delete;
+    driver& operator=(const driver&) = delete;
     virtual const char* name() const = 0;
 };
 
-class BlockDriver : public Driver
+class block_driver : public driver
 {
 public:
     virtual int open()

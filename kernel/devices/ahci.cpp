@@ -127,7 +127,7 @@ struct fis_reg_h2d
     uint32_t _unused2;
 } __attribute__((packed));
 
-enum class Type
+enum class type_t
 {
     NONE,
     SATA,
@@ -166,23 +166,23 @@ struct hba_port
     static constexpr uint8_t DET_PRESENT = 3;
     static constexpr uint8_t IPM_ACTIVE  = 1;
 
-    Type type() const volatile
+    type_t type() const volatile
     {
         if ((status & 0xf) != DET_PRESENT || ((status >> 8) & 0xf) != IPM_ACTIVE)
-            return Type::NONE;
+            return type_t::NONE;
 
         switch (sig) {
         case 0xEB140101:
-            return Type::SATAPI;
+            return type_t::SATAPI;
 
         case 0xC33C0101:
-            return Type::SEMB;
+            return type_t::SEMB;
 
         case 0x96690101:
-            return Type::PORT_MULTIPLIER;
+            return type_t::PORT_MULTIPLIER;
 
         default:
-            return Type::SATA;
+            return type_t::SATA;
         }
     }
 
@@ -239,10 +239,10 @@ struct hba_t
     volatile hba_port ports[32];
 };
 
-class AhciDriver : public BlockDriver
+class ahci_driver : public block_driver
 {
     uint8_t portid;
-    Type type;
+    type_t type;
     bool valid;
     volatile hba_port* port = nullptr;
 
@@ -255,11 +255,11 @@ class AhciDriver : public BlockDriver
 
 public:
 
-    AhciDriver(uint8_t portid, volatile hba_port* port)
+    ahci_driver(uint8_t portid, volatile hba_port* port)
         : portid(portid), port(port)
     {
         type = port->type();
-        valid = type == Type::SATA /*|| type == Type::SATAPI*/;
+        valid = type == type_t::SATA /*|| type == type_t::SATAPI*/;
         if (!valid)
             return;
 
@@ -305,7 +305,7 @@ public:
         for (volatile int i=1<<28; i--; ) ; // Pause a bit
     }
 
-    ~AhciDriver()
+    ~ahci_driver()
     {
         port->stop_engine();
         //delete[] cmd_head;
@@ -403,12 +403,12 @@ public:
 
 };
 
-class AhciPciDriver : public Driver
+class ahci_pci_driver : public pci::pci_driver
 {
-    vector<unique_ptr<AhciDriver>> devs;
+    vector<unique_ptr<ahci_driver>> devs;
     hba_t* hba = nullptr;
 public:
-    AhciPciDriver(pci::Device& dev, uint32_t bar)
+    ahci_pci_driver(pci::device_t& dev, uint32_t bar)
     {
         console::printf("Probing AHCI device at %02X:%02X:%02X\n",
                         dev.busid(), dev.slotid(), dev.fun());
@@ -426,8 +426,8 @@ public:
             if (pi & 1) {
                 console::printf("  Port %d: %s\n",
                                 i, type_names[size_t(hba->ports[i].type())]);
-                if (hba->ports[i].type() == Type::SATA) // TODO SATAPI
-                    devs.push_back(make_unique<AhciDriver>(i, hba->ports+i));
+                if (hba->ports[i].type() == type_t::SATA) // TODO SATAPI
+                    devs.push_back(make_unique<ahci_driver>(i, hba->ports+i));
             }
         }
         console::printf(" OK\n");
@@ -439,7 +439,7 @@ public:
     }
 };
 
-unique_ptr<Driver> maker(pci::Device& dev)
+unique_ptr<pci::pci_driver> maker(pci::device_t& dev)
 {
     if (dev.classcode() != CLASSCODE_SATA_AHCI)
         return {};
@@ -448,7 +448,7 @@ unique_ptr<Driver> maker(pci::Device& dev)
         return {};
     bar = bar & pci::BAR_ADDR_MASK;
 
-    return make_unique<AhciPciDriver>(dev, bar);
+    return make_unique<ahci_pci_driver>(dev, bar);
 }
 
 void init()

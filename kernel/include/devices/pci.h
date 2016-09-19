@@ -66,8 +66,8 @@ constexpr uint8_t SUBCLASS_STORAGE_SATA = 0x06;
 // Classcodes
 constexpr uint32_t CLASSCODE_PCI_BRIDGE = 0x060400;
 
-class Slot;
-class Bus;
+class slot_t;
+class bus_t;
 
 union classcode_t
 {
@@ -118,9 +118,20 @@ union command_t
     };
 };
 
-class Device;
+class device_t;
 
-using driver_factory = std::function<std::unique_ptr<Driver>(Device&)>;
+class pci_driver
+{
+public:
+    pci_driver() = default;
+    virtual ~pci_driver() = default;
+    pci_driver(const pci_driver&) = delete;
+    pci_driver& operator=(const pci_driver&) = delete;
+    virtual const char* name() const = 0;
+};
+
+
+using driver_factory = std::function<std::unique_ptr<pci_driver>(device_t&)>;
 
 constexpr uint32_t BAR_MEM_MASK = 1;
 constexpr uint32_t BAR_TYPE_MASK = 3 << 1;
@@ -130,19 +141,19 @@ constexpr uint32_t BAR_TYPE_64BIT = 2 << 1;
 constexpr uint32_t BAR_PREFETCH_MASK = 1 << 3; // Only exists for memory space
 constexpr uint32_t BAR_ADDR_MASK = ~15;
 
-class Device
+class device_t
 {
     uint8_t _busid, _slotid;
     uint8_t _fun;
     classcode_t _classcode;
     uint8_t _revisionid;
 
-    const Slot& _slot;
+    const slot_t& _slot;
 
-    std::unique_ptr<Driver> _driver;
+    std::unique_ptr<pci_driver> _driver;
 
-    explicit Device(uint8_t bus, const Slot& slot, uint8_t fun);
-    friend class Slot;
+    explicit device_t(uint8_t bus, const slot_t& slot, uint8_t fun);
+    friend class slot_t;
 
 public:
     uint8_t busid() const { return _busid; }
@@ -153,7 +164,7 @@ public:
     uint8_t progif() const { return _classcode.progif; }
     uint8_t revisionid() const { return _revisionid; }
     uint32_t classcode() const { return _classcode.classcode; }
-    const Slot& slot() const { return _slot; }
+    const slot_t& slot() const { return _slot; }
 
     void dump() const;
 
@@ -166,24 +177,24 @@ public:
     uint8_t bar(int i) const { return readd(REG_BAR0 + 4*i); }
     command_t command() const { return {readw(REG_COMMAND)}; }
 
-    Driver* driver() const { return _driver.get(); }
+    pci_driver* driver() const { return _driver.get(); }
     bool probe(driver_factory factory);
 };
 
 constexpr uint16_t NONEXISTENT = 0xffff;
 
-class Slot
+class slot_t
 {
     uint8_t _id;
     uint16_t _vendor, _device;
-    const Bus& _bus;
-    vector<Device> devs;
+    const bus_t& _bus;
+    vector<device_t> devs;
 
-    explicit Slot(const Bus& bus, uint8_t slot);
-    friend class Bus;
+    explicit slot_t(const bus_t& bus, uint8_t slot);
+    friend class bus_t;
 
 public:
-    Slot(Slot&& o) :
+    slot_t(slot_t&& o) :
         _id(o._id), _vendor(o._vendor), _device(o._device), _bus(o._bus),
         devs(std::move(o.devs)) {}
 
@@ -191,38 +202,38 @@ public:
     explicit operator bool() const { return exists(); }
 
     uint8_t id() const { return _id; }
-    const Bus& bus() const { return _bus; }
-    const vector<Device>& devices() { return devs; }
+    const bus_t& bus() const { return _bus; }
+    const vector<device_t>& devices() { return devs; }
 
     void dump() const;
 };
 
-class Bus
+class bus_t
 {
     uint8_t _id;
-    vector<Slot> _slots;
+    vector<slot_t> _slots;
 
-    explicit Bus(uint8_t bus);
+    explicit bus_t(uint8_t bus);
     friend void init();
-    friend class Device;
+    friend class device_t;
 
-    static linked_list<Bus> busses;
+    static linked_list<bus_t> busses;
 
     static void add_bus(uint8_t bus);
 
 public:
-    explicit Bus() = default;
-    Bus(const Bus&) = delete;
-    Bus& operator=(const Bus&) = delete;
-    Bus(Bus&& o) : _id(o._id), _slots(std::move(o._slots)) {}
+    explicit bus_t() = default;
+    bus_t(const bus_t&) = delete;
+    bus_t& operator=(const bus_t&) = delete;
+    bus_t(bus_t&& o) : _id(o._id), _slots(std::move(o._slots)) {}
 
     uint8_t id() const { return _id; }
-    const Slot& operator[](size_t i) const { return _slots[i]; }
-    vector<Slot>& slots() { return _slots; }
+    const slot_t& operator[](size_t i) const { return _slots[i]; }
+    vector<slot_t>& slots() { return _slots; }
 
     void dump() const;
 
-    static linked_list<Bus>& get_busses() { return busses; }
+    static linked_list<bus_t>& get_busses() { return busses; }
     static void dump_all();
 };
 
