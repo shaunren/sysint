@@ -254,7 +254,6 @@ class ahci_driver : public block_driver
     void* fis_phys = nullptr;
 
 public:
-
     ahci_driver(uint8_t portid, volatile hba_port* port)
         : portid(portid), port(port)
     {

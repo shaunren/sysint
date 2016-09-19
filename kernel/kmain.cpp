@@ -28,6 +28,7 @@
 #include <proc.h>
 #include <syscall.h>
 #include <fs.h>
+#include <fs/devfs.h>
 #include <lib/string.h>
 #include <lib/rbtree.h>
 #include <lib/linked_list.h>
@@ -56,6 +57,7 @@ extern "C" void kmain(volatile multiboot_info* mbd)
     devices::keyboard::init();
 
     fs::init();
+    fs::devfs::init();
 
     process::init();
 

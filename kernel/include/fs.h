@@ -98,6 +98,11 @@ struct node : std::enable_shared_from_this<node>
         child->parent = shared_from_this();
         children.push_back(child);
     }
+
+    inline void bind(std::shared_ptr<superblock> bindpoint)
+    {
+        bind_points.push_back(bindpoint);
+    }
 };
 
 struct superblock
@@ -113,6 +118,8 @@ struct superblock
     timespec ctime;
 
     std::shared_ptr<node> root;
+
+    static superblock root_sb;
 
     virtual inode* alloc_inode()
     {
@@ -190,8 +197,6 @@ struct file
 };
 
 void init();
-
-std::shared_ptr<superblock> get_default_root();
 
 
 /* syscalls */

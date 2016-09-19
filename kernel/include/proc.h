@@ -134,7 +134,7 @@ struct proc
     void*    stack_bot;         // bottom of stack
 
     /* fs root */
-    std::shared_ptr<fs::superblock> root_sb = fs::get_default_root();
+    fs::superblock* root_sb = &fs::superblock::root_sb;
 
     /* file descriptor table */
     struct fd_table_t
@@ -143,7 +143,7 @@ struct proc
         vector<std::shared_ptr<fs::file>> fds;
         fd_table_t() : fds(0, /* contract = */true, PROC_MAX_FDS)
         {
-            auto nd = fs::get_default_root()->walk("/dev/tty");
+            auto nd = fs::superblock::root_sb.walk("/dev/tty");
             ASSERTH(nd != nullptr);
             std::shared_ptr<fs::file> fp;
             ASSERTH(nd->open(fp) == 0 && fp);

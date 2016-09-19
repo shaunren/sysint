@@ -18,6 +18,7 @@
 #define _DRIVER_H_
 
 #include <stdint.h>
+#include <lib/linked_list.h>
 
 namespace devices
 {
@@ -34,6 +35,9 @@ public:
 
 class block_driver : public driver
 {
+    static linked_list<block_driver> drivers;
+protected:
+    static void register_drv(block_driver& drv);
 public:
     virtual int open()
     {
